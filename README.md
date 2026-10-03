@@ -52,4 +52,19 @@ Repositório da aplicação principal Spring Boot da Oficina Mecânica DGCar no 
 
 ## Status
 
-Estrutura inicial criada. Código da aplicação, Dockerfile, Postman, Swagger e pipeline serão extraídos nas próximas etapas.
+Extração inicial realizada a partir do repositório histórico.
+
+Artefatos extraídos:
+
+- `src/**`
+- `pom.xml`
+- `Dockerfile`
+- `docker-compose.yml`
+- `api-requests.http`
+- `postman/**`
+- `allure-report.ps1`
+- `docs/ReportOWASP/**`
+- `docs/ReportTRIVY/**`
+- `.github/workflows/app-cd.yml`
+
+O commit de origem está registrado em [`ORIGEM_HISTORICA.md`](./ORIGEM_HISTORICA.md).
