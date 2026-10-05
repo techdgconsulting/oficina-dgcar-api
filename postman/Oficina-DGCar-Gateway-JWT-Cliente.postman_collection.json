@@ -1,0 +1,301 @@
+{
+  "info": {
+    "_postman_id": "0dbaec97-967b-4dd9-9737-0f64a0fa8fe0",
+    "name": "Oficina DGCar - Gateway JWT Cliente",
+    "description": "Evidencia do fluxo CPF -> Lambda Auth -> JWT CLIENTE -> API Spring protegida pelo API Gateway.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 - Autenticar cliente por CPF",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('retorna 200 OK', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const body = pm.response.json();",
+              "pm.test('retorna accessToken Bearer', function () {",
+              "  pm.expect(body.tokenType).to.eql('Bearer');",
+              "  pm.expect(body.accessToken).to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "pm.collectionVariables.set('clienteToken', body.accessToken);",
+              "",
+              "const payloadPart = body.accessToken.split('.')[1];",
+              "const normalized = payloadPart.replace(/-/g, '+').replace(/_/g, '/');",
+              "const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, '=');",
+              "const payload = JSON.parse(atob(padded));",
+              "",
+              "pm.collectionVariables.set('clienteId', String(payload.clienteId));",
+              "pm.collectionVariables.set('cpfClienteValido', payload.sub);",
+              "",
+              "pm.test('JWT externo possui claims de cliente', function () {",
+              "  pm.expect(payload.tipo).to.eql('CLIENTE');",
+              "  pm.expect(payload.sub).to.eql(pm.collectionVariables.get('cpfClienteValido'));",
+              "  pm.expect(payload.clienteId).to.exist;",
+              "  pm.expect(payload.iss).to.eql('oficina-dgcar-auth-lambda');",
+              "  pm.expect(payload.aud).to.eql('oficina-dgcar-api');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\"\n}"
+        },
+        "url": {
+          "raw": "{{gatewayBaseUrl}}/auth/cpf",
+          "host": [
+            "{{gatewayBaseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "cpf"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "02 - Listar OS do proprio cliente com JWT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('retorna 200 OK', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('resposta e uma lista', function () {",
+              "  pm.expect(pm.response.json()).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{clienteToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/cliente/{{clienteId}}",
+          "host": [
+            "{{gatewayBaseUrl}}"
+          ],
+          "path": [
+            "api",
+            "ordens-servico",
+            "cliente",
+            "{{clienteId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "03 - Negar listagem sem token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('retorna 401 Unauthorized', function () {",
+              "  pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/cliente/{{clienteId}}",
+          "host": [
+            "{{gatewayBaseUrl}}"
+          ],
+          "path": [
+            "api",
+            "ordens-servico",
+            "cliente",
+            "{{clienteId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "04 - Bloquear acesso a outro cliente",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('retorna 403 Forbidden', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{clienteToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/cliente/{{outroClienteId}}",
+          "host": [
+            "{{gatewayBaseUrl}}"
+          ],
+          "path": [
+            "api",
+            "ordens-servico",
+            "cliente",
+            "{{outroClienteId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "05 - Abrir OS completa como cliente autenticado",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const suffix = Math.floor(Math.random() * 90) + 10;",
+              "pm.collectionVariables.set('placaTeste', `TST1A${suffix}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('retorna 201 Created', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "",
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('ordemServicoId', String(body.id));",
+              "pm.collectionVariables.set('ordemServicoNumero', body.numero);",
+              "",
+              "pm.test('OS foi criada para o CPF autenticado', function () {",
+              "  pm.expect(body.clienteDocumento.replace(/\\D/g, '')).to.eql(pm.collectionVariables.get('cpfClienteValido'));",
+              "  pm.expect(body.numero).to.be.a('string').and.not.empty;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{clienteToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{cpfClienteValido}}\",\n    \"nome\": \"Cliente Evidencia Gateway\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"cliente.evidencia@dgcar.local\",\n    \"cep\": \"01310100\",\n    \"logradouro\": \"Av Paulista\",\n    \"bairro\": \"Bela Vista\",\n    \"cidade\": \"Sao Paulo\",\n    \"uf\": \"SP\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{placaTeste}}\",\n    \"marca\": \"Toyota\",\n    \"modelo\": \"Corolla Evidencia\",\n    \"ano\": 2024\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": 1,\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": []\n}"
+        },
+        "url": {
+          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/completa",
+          "host": [
+            "{{gatewayBaseUrl}}"
+          ],
+          "path": [
+            "api",
+            "ordens-servico",
+            "completa"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "gatewayBaseUrl",
+      "value": "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com"
+    },
+    {
+      "key": "cpfClienteValido",
+      "value": "52398614808"
+    },
+    {
+      "key": "clienteToken",
+      "value": ""
+    },
+    {
+      "key": "clienteId",
+      "value": ""
+    },
+    {
+      "key": "outroClienteId",
+      "value": "3"
+    },
+    {
+      "key": "placaTeste",
+      "value": ""
+    },
+    {
+      "key": "ordemServicoId",
+      "value": ""
+    },
+    {
+      "key": "ordemServicoNumero",
+      "value": ""
+    }
+  ]
+}
