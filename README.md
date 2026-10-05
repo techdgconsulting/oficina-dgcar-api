@@ -250,16 +250,23 @@ Secrets obrigatorios no environment escolhido:
 |---|---|
 | `AWS_ACCESS_KEY_ID` | Usuario IAM usado pelo GitHub Actions |
 | `AWS_SECRET_ACCESS_KEY` | Usuario IAM usado pelo GitHub Actions |
-| `AWS_REGION` | Regiao AWS, por exemplo `us-east-1` |
-| `ECR_REPOSITORY` | Nome ou URL do repositorio ECR da aplicacao |
-| `EKS_CLUSTER_NAME` | Nome do cluster EKS |
-| `SPRING_DATASOURCE_URL` | Output `spring_datasource_url` do repo `oficina-dgcar-infra-db` |
 | `SPRING_DATASOURCE_USERNAME` | Usuario do RDS PostgreSQL |
 | `SPRING_DATASOURCE_PASSWORD` | Senha do RDS PostgreSQL |
 | `JWT_SECRET` | Segredo do JWT interno |
 | `CLIENT_JWT_SECRET` | Mesmo segredo usado pela Lambda Auth CPF |
 | `SMTP_USERNAME` | Usuario SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
 | `SMTP_PASSWORD` | Senha SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
+
+Variaveis obrigatorias no environment escolhido:
+
+| Nome | Origem |
+|---|---|
+| `AWS_REGION` | Regiao AWS, por exemplo `us-east-1` |
+| `ECR_REPOSITORY` | Nome ou URL do repositorio ECR da aplicacao |
+| `EKS_CLUSTER_NAME` | Nome do cluster EKS |
+| `SPRING_DATASOURCE_URL` | Output `spring_datasource_url` do repo `oficina-dgcar-infra-db` |
+
+O workflow tambem aceita `AWS_REGION`, `ECR_REPOSITORY`, `EKS_CLUSTER_NAME` e `SPRING_DATASOURCE_URL` como Secrets. Quando os dois existem, o valor em Secret tem prioridade.
 
 Variaveis opcionais no environment escolhido:
 
