@@ -67,8 +67,8 @@ class JwtAuthenticationFilterTest {
     void deveAutenticarComTokenValido() throws ServletException, IOException {
         request.addHeader("Authorization", "Bearer token-valido");
 
-        when(tokenProviderPort.extrairUsername("token-valido")).thenReturn("admin");
         when(tokenProviderPort.isTokenValido("token-valido")).thenReturn(true);
+        when(tokenProviderPort.extrairUsername("token-valido")).thenReturn("admin");
         when(tokenProviderPort.extrairRole("token-valido")).thenReturn("GESTOR");
 
         filter.doFilterInternal(request, response, filterChain);
@@ -88,8 +88,8 @@ class JwtAuthenticationFilterTest {
             var req = new MockHttpServletRequest();
             req.addHeader("Authorization", "Bearer token-" + role);
 
-            when(tokenProviderPort.extrairUsername("token-" + role)).thenReturn("user");
             when(tokenProviderPort.isTokenValido("token-" + role)).thenReturn(true);
+            when(tokenProviderPort.extrairUsername("token-" + role)).thenReturn("user");
             when(tokenProviderPort.extrairRole("token-" + role)).thenReturn(role);
 
             filter.doFilterInternal(req, response, filterChain);
@@ -108,7 +108,6 @@ class JwtAuthenticationFilterTest {
     void naoDeveAutenticarComTokenInvalido() throws ServletException, IOException {
         request.addHeader("Authorization", "Bearer token-invalido");
 
-        when(tokenProviderPort.extrairUsername("token-invalido")).thenReturn("admin");
         when(tokenProviderPort.isTokenValido("token-invalido")).thenReturn(false);
 
         filter.doFilterInternal(request, response, filterChain);
@@ -122,11 +121,32 @@ class JwtAuthenticationFilterTest {
     void deveProsseguirComUsernameNulo() throws ServletException, IOException {
         request.addHeader("Authorization", "Bearer token-ruim");
 
+        when(tokenProviderPort.isTokenValido("token-ruim")).thenReturn(true);
         when(tokenProviderPort.extrairUsername("token-ruim")).thenReturn(null);
 
         filter.doFilterInternal(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
         assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
+    @Story("Autenticar cliente externo com detalhes do cliente")
+    void deveAutenticarClienteExternoComClienteId() throws ServletException, IOException {
+        request.addHeader("Authorization", "Bearer token-cliente");
+
+        when(tokenProviderPort.isTokenValido("token-cliente")).thenReturn(true);
+        when(tokenProviderPort.extrairUsername("token-cliente")).thenReturn("12345678909");
+        when(tokenProviderPort.extrairRole("token-cliente")).thenReturn("CLIENTE");
+        when(tokenProviderPort.extrairClienteId("token-cliente")).thenReturn(10L);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        assertNotNull(auth);
+        assertEquals("12345678909", auth.getName());
+        assertTrue(auth.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_CLIENTE")));
+        assertInstanceOf(JwtAuthenticationDetails.class, auth.getDetails());
+        assertEquals(10L, ((JwtAuthenticationDetails) auth.getDetails()).clienteId());
     }
 }
