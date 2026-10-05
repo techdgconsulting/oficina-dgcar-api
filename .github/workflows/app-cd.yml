@@ -91,14 +91,14 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
 
       - name: Resolve deployment targets
         id: targets
         env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-          EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY || vars.ECR_REPOSITORY }}
+          EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME || vars.EKS_CLUSTER_NAME }}
         run: |
           set -euo pipefail
 
@@ -159,7 +159,7 @@ jobs:
 
       - name: Create or update Kubernetes config
         env:
-          SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
+          SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL || vars.SPRING_DATASOURCE_URL }}
           OFICINA_PUBLIC_BASE_URL: ${{ vars.OFICINA_PUBLIC_BASE_URL || 'http://localhost:8080' }}
           OFICINA_EMAIL_ENABLED: ${{ vars.OFICINA_EMAIL_ENABLED || 'false' }}
           OFICINA_EMAIL_MODE: ${{ vars.OFICINA_EMAIL_MODE || 'LOG' }}
