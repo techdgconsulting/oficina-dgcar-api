@@ -214,6 +214,80 @@ Executar testes:
 mvn test
 ```
 
+## Deploy Manual Em Kubernetes
+
+Foi implementado deploy manual no workflow `App CI/CD - Build, Test and Deploy`.
+
+O botao `Run workflow` fica disponivel no GitHub Actions apos o merge da alteracao que adiciona `workflow_dispatch`.
+
+Fluxo executado pelo workflow:
+
+1. Executa `mvn clean test`.
+2. Gera imagem Docker.
+3. Publica a imagem no Amazon ECR.
+4. Atualiza o kubeconfig do EKS.
+5. Cria ou atualiza namespace, ConfigMap, Secret, Deployment, Service e HPA.
+6. Aguarda o rollout do deployment.
+7. Exibe pods, service, HPA e URL do LoadBalancer.
+
+Execucao pelo GitHub:
+
+```text
+Actions -> App CI/CD - Build, Test and Deploy -> Run workflow
+```
+
+Inputs:
+
+| Campo | Valor |
+|---|---|
+| `environment` | `homolog` ou `prod` |
+
+O deploy real foi mantido apenas via execucao manual e usa GitHub Environments. Assim, `homolog` e `prod` continuam exigindo aprovacao antes da execucao do job de deploy.
+
+Secrets obrigatorios no environment escolhido:
+
+| Nome | Origem |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | Usuario IAM usado pelo GitHub Actions |
+| `AWS_SECRET_ACCESS_KEY` | Usuario IAM usado pelo GitHub Actions |
+| `AWS_REGION` | Regiao AWS, por exemplo `us-east-1` |
+| `ECR_REPOSITORY` | Nome ou URL do repositorio ECR da aplicacao |
+| `EKS_CLUSTER_NAME` | Nome do cluster EKS |
+| `SPRING_DATASOURCE_URL` | Output `spring_datasource_url` do repo `oficina-dgcar-infra-db` |
+| `SPRING_DATASOURCE_USERNAME` | Usuario do RDS PostgreSQL |
+| `SPRING_DATASOURCE_PASSWORD` | Senha do RDS PostgreSQL |
+| `JWT_SECRET` | Segredo do JWT interno |
+| `CLIENT_JWT_SECRET` | Mesmo segredo usado pela Lambda Auth CPF |
+| `SMTP_USERNAME` | Usuario SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
+| `SMTP_PASSWORD` | Senha SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
+
+Variaveis opcionais no environment escolhido:
+
+| Nome | Padrao |
+|---|---|
+| `CLIENT_JWT_ISSUER` | `oficina-dgcar-auth-lambda` |
+| `CLIENT_JWT_AUDIENCE` | `oficina-dgcar-api` |
+| `OFICINA_EMAIL_ENABLED` | `false` |
+| `OFICINA_EMAIL_MODE` | `LOG` |
+| `OFICINA_EMAIL_REMETENTE` | `no-reply@dgcar.local` |
+| `SMTP_HOST` | `localhost` |
+| `SMTP_PORT` | `587` |
+| `SMTP_AUTH` | `true` |
+| `SMTP_STARTTLS_ENABLE` | `true` |
+| `MANAGEMENT_HEALTH_MAIL_ENABLED` | `false` |
+| `PAGAMENTO_GATEWAY_APPROVAL_RATE` | `1.0` |
+| `PAGAMENTO_GATEWAY_LATENCY_MS` | `0` |
+
+Validacao apos deploy:
+
+```bash
+kubectl get pods -n oficina
+kubectl logs -n oficina deployment/oficina-api
+kubectl get svc oficina-api -n oficina
+```
+
+O deploy da API tambem executa as migrations Flyway na inicializacao da aplicacao. A Lambda Auth CPF depende dessas tabelas e dados para retornar JWT no endpoint `POST /auth/cpf`.
+
 ## Validacoes Realizadas
 
 Foi executada a suite completa de testes:
