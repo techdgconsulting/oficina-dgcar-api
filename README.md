@@ -182,10 +182,6 @@ Secrets esperados no GitHub:
 
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
-- `AWS_REGION`
-- `ECR_REPOSITORY`
-- `EKS_CLUSTER_NAME`
-- `SPRING_DATASOURCE_URL`
 - `SPRING_DATASOURCE_USERNAME`
 - `SPRING_DATASOURCE_PASSWORD`
 - `JWT_SECRET`
@@ -267,6 +263,30 @@ Variaveis obrigatorias no environment escolhido:
 | `SPRING_DATASOURCE_URL` | Output `spring_datasource_url` do repo `oficina-dgcar-infra-db` |
 
 O workflow tambem aceita `AWS_REGION`, `ECR_REPOSITORY`, `EKS_CLUSTER_NAME` e `SPRING_DATASOURCE_URL` como Secrets. Quando os dois existem, o valor em Secret tem prioridade.
+
+Origem dos valores:
+
+| Valor no repo `oficina-dgcar-api` | Origem operacional |
+|---|---|
+| `AWS_REGION` | Regiao usada pelos repos de infraestrutura, atualmente `us-east-1` |
+| `ECR_REPOSITORY` | Output `ecr_repository_url` do repo `oficina-dgcar-infra-k8s`, ou apenas o nome do ECR se preferir |
+| `EKS_CLUSTER_NAME` | Output `eks_cluster_name` do repo `oficina-dgcar-infra-k8s` |
+| `SPRING_DATASOURCE_URL` | Output `spring_datasource_url` do repo `oficina-dgcar-infra-db` |
+| `SPRING_DATASOURCE_USERNAME` | Mesmo valor usado como `DB_USERNAME`/usuario do RDS no repo `oficina-dgcar-infra-db` |
+| `SPRING_DATASOURCE_PASSWORD` | Mesmo valor usado como `DB_PASSWORD`/senha do RDS no repo `oficina-dgcar-infra-db` |
+| `CLIENT_JWT_SECRET` | Mesmo valor configurado no environment do repo `oficina-dgcar-auth-lambda` |
+| `JWT_SECRET` | Segredo interno da API; pode reaproveitar o valor do repositorio historico quando ainda estiver valido |
+
+Comandos para consultar os outputs no GitHub Actions:
+
+```bash
+# No repo oficina-dgcar-infra-k8s, apos o apply de homolog:
+terraform output ecr_repository_url
+terraform output eks_cluster_name
+
+# No repo oficina-dgcar-infra-db, apos o apply de homolog:
+terraform output spring_datasource_url
+```
 
 Variaveis opcionais no environment escolhido:
 
