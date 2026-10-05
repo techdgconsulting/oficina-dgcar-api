@@ -79,7 +79,7 @@ public class SecurityConfig {
 
                 // ATENDENTE ou GESTOR — recepção e faturamento
                 .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico")).hasAnyRole("ATENDENTE", "GESTOR")
-                .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico/completa")).hasAnyRole("CLIENTE", "ATENDENTE", "GESTOR")
+                .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico/completa")).hasAnyRole("ATENDENTE", "GESTOR")
                 .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico/*/orcamento")).hasAnyRole("ATENDENTE", "GESTOR")
                 .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico/*/orcamento/notificar-cliente")).hasAnyRole("ATENDENTE", "GESTOR")
                 .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico/*/pagamento")).hasAnyRole("ATENDENTE", "GESTOR")

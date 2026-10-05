@@ -97,7 +97,7 @@ public class OrdemDeServicoController {
     }
 
     @PostMapping("/completa")
-    @PreAuthorize("hasAnyRole('ATENDENTE','GESTOR') or (hasRole('CLIENTE') and @clienteSecurity.isDocumentoDoToken(#request.cliente().documento()))")
+    @PreAuthorize("hasAnyRole('ATENDENTE','GESTOR')")
     @Operation(summary = "Criar ordem de servico completa com dados de cliente e veiculo")
     public ResponseEntity<OrdemServicoResponse> criarCompleta(
             @Valid @RequestBody CriarOrdemServicoCompletaRequest request,

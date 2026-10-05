@@ -43,10 +43,10 @@ Fluxo de autenticacao externa:
 Cliente -> API Gateway POST /auth/cpf -> Lambda Auth CPF -> RDS PostgreSQL -> JWT CLIENTE
 ```
 
-Fluxo de consumo protegido:
+Fluxo de consulta protegida:
 
 ```text
-Cliente -> API Gateway -> API Spring Boot no EKS -> Validacao JWT CLIENTE -> Regras por cliente
+Cliente -> API Gateway -> API Spring Boot no EKS -> Validacao JWT CLIENTE -> Consulta somente das proprias OS
 ```
 
 Endpoint de homologacao do API Gateway:
@@ -62,7 +62,7 @@ POST /auth/cpf
 Content-Type: application/json
 
 {
-  "cpf": "12345678909"
+  "cpf": "52398614808"
 }
 ```
 
@@ -70,9 +70,9 @@ Resposta esperada quando o cliente existe e esta apto:
 
 ```json
 {
-  "token": "<jwt-cliente>",
   "tokenType": "Bearer",
-  "expiresIn": 3600
+  "accessToken": "<jwt-cliente>",
+  "expiresIn": "15m"
 }
 ```
 
@@ -133,8 +133,9 @@ As rotas abaixo aceitam JWT externo `CLIENTE` emitido pela Lambda, alem dos perf
 
 | Metodo | Rota | Regra implementada |
 |---|---|---|
-| `POST` | `/api/ordens-servico/completa` | `CLIENTE` pode abrir OS apenas quando o CPF do corpo e igual ao `sub` do JWT |
 | `GET` | `/api/ordens-servico/cliente/{clienteId}` | `CLIENTE` pode listar apenas ordens do proprio `clienteId` |
+
+Clientes externos nao abrem ordens de servico pela API. A criacao de OS permanece restrita a perfis internos da oficina (`ATENDENTE` e `GESTOR`).
 
 Exemplo de chamada protegida:
 
@@ -142,6 +143,60 @@ Exemplo de chamada protegida:
 curl --location "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com/api/ordens-servico/cliente/1" \
   --header "Authorization: Bearer <jwt-cliente>"
 ```
+
+## Evidencia Postman Do Fluxo CPF JWT API
+
+Foi criada a collection [`postman/Oficina-DGCar-Gateway-JWT-Cliente.postman_collection.json`](./postman/Oficina-DGCar-Gateway-JWT-Cliente.postman_collection.json) para demonstrar o fluxo completo em homologacao:
+
+```text
+CPF valido -> API Gateway -> Lambda Auth CPF -> JWT CLIENTE -> API Gateway -> API Spring no EKS -> consulta protegida das proprias OS
+```
+
+A collection usa o endpoint oficial de homologacao:
+
+```text
+https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com
+```
+
+CPF de massa usado como evidencia:
+
+```text
+52398614808
+```
+
+Esse CPF pertence a massa carregada pelas migrations e foi corrigido pela migration `V15__corrigir_documentos_clientes_seed.sql`.
+
+Requests da collection:
+
+| Ordem | Request | Resultado esperado |
+|---|---|---|
+| 1 | `Autenticar cliente por CPF` | `200 OK`, `accessToken` preenchido e claim `tipo=CLIENTE` |
+| 2 | `Listar OS do proprio cliente com JWT` | `200 OK`, acesso permitido para o `clienteId` do token |
+| 3 | `Negar listagem sem token` | `401 Unauthorized` |
+| 4 | `Bloquear acesso a outro cliente` | `403 Forbidden` |
+| 5 | `Bloquear abertura de OS por cliente externo` | `403 Forbidden` |
+
+A collection captura automaticamente:
+
+- `accessToken` retornado pela Lambda;
+- `clienteId` extraido do payload do JWT;
+- `clienteId` usado nas chamadas protegidas.
+
+Fluxo de uso no Postman:
+
+1. Importar a collection.
+2. Executar o request `Autenticar cliente por CPF`.
+3. Executar os requests de acesso permitido e negado.
+4. Executar `Bloquear abertura de OS por cliente externo` para evidenciar que cliente externo nao cria OS.
+
+Evidencias aceitas para apresentacao:
+
+- print do `POST /auth/cpf` com `200 OK`;
+- print do token decodificado contendo `tipo=CLIENTE`, `clienteId`, `sub`, `iss` e `aud`;
+- print da listagem do proprio cliente com `200 OK`;
+- print da mesma rota sem token com `401`;
+- print da tentativa de outro `clienteId` com `403`;
+- print da tentativa de abertura de OS completa com token de cliente retornando `403`.
 
 ## Rotas Protegidas Por JWT Interno
 
