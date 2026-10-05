@@ -288,6 +288,48 @@ terraform output eks_cluster_name
 terraform output spring_datasource_url
 ```
 
+Configuracao do Environment `homolog` via GitHub CLI:
+
+```powershell
+$repo = "techdgconsulting/oficina-dgcar-api"
+$envName = "homolog"
+$region = "us-east-1"
+
+gh variable set AWS_REGION --repo $repo --env $envName --body $region
+gh variable set ECR_REPOSITORY --repo $repo --env $envName --body "<ecr_repository_url>"
+gh variable set EKS_CLUSTER_NAME --repo $repo --env $envName --body "<eks_cluster_name>"
+gh variable set SPRING_DATASOURCE_URL --repo $repo --env $envName --body "<spring_datasource_url>"
+gh variable set CLIENT_JWT_ISSUER --repo $repo --env $envName --body "oficina-dgcar-auth-lambda"
+gh variable set CLIENT_JWT_AUDIENCE --repo $repo --env $envName --body "oficina-dgcar-api"
+gh variable set OFICINA_EMAIL_ENABLED --repo $repo --env $envName --body "false"
+gh variable set OFICINA_EMAIL_MODE --repo $repo --env $envName --body "LOG"
+```
+
+Secrets cadastrados via GitHub CLI:
+
+```powershell
+$repo = "techdgconsulting/oficina-dgcar-api"
+$envName = "homolog"
+
+$awsAccessKeyId | gh secret set AWS_ACCESS_KEY_ID --repo $repo --env $envName
+$awsSecretAccessKey | gh secret set AWS_SECRET_ACCESS_KEY --repo $repo --env $envName
+$springDatasourceUsername | gh secret set SPRING_DATASOURCE_USERNAME --repo $repo --env $envName
+$springDatasourcePassword | gh secret set SPRING_DATASOURCE_PASSWORD --repo $repo --env $envName
+$clientJwtSecret | gh secret set CLIENT_JWT_SECRET --repo $repo --env $envName
+$jwtSecret | gh secret set JWT_SECRET --repo $repo --env $envName
+```
+
+No ambiente `homolog`, a configuracao foi cadastrada com os valores coletados dos recursos AWS provisionados:
+
+| Item | Valor publico cadastrado |
+|---|---|
+| `AWS_REGION` | `us-east-1` |
+| `ECR_REPOSITORY` | `857145323352.dkr.ecr.us-east-1.amazonaws.com/oficina-dgcar/oficina-api` |
+| `EKS_CLUSTER_NAME` | `oficina-dgcar-homolog-eks` |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://oficina-dgcar-homolog-postgres.curuqcwkaa6w.us-east-1.rds.amazonaws.com:5432/oficina` |
+
+Os secrets `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` e `CLIENT_JWT_SECRET` foram copiados da configuracao da Lambda `oficina-dgcar-homolog-auth-cpf` sem exposicao dos valores no terminal. O `JWT_SECRET` interno da API foi gerado especificamente para o environment `homolog`.
+
 Variaveis opcionais no environment escolhido:
 
 | Nome | Padrao |
