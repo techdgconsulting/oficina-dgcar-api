@@ -79,7 +79,7 @@ public class SecurityConfig {
 
                 // ATENDENTE ou GESTOR — recepção e faturamento
                 .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico")).hasAnyRole("ATENDENTE", "GESTOR")
-                .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico/completa")).hasAnyRole("ATENDENTE", "GESTOR")
+                .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico/completa")).hasAnyRole("CLIENTE", "ATENDENTE", "GESTOR")
                 .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico/*/orcamento")).hasAnyRole("ATENDENTE", "GESTOR")
                 .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico/*/orcamento/notificar-cliente")).hasAnyRole("ATENDENTE", "GESTOR")
                 .requestMatchers(paths.matcher(HttpMethod.POST, "/api/ordens-servico/*/pagamento")).hasAnyRole("ATENDENTE", "GESTOR")
@@ -88,6 +88,7 @@ public class SecurityConfig {
                 .requestMatchers(paths.matcher(HttpMethod.PATCH, "/api/ordens-servico/*/entregar")).hasAnyRole("ATENDENTE", "GESTOR")
                 .requestMatchers(paths.matcher("/api/clientes/**")).hasAnyRole("ATENDENTE", "GESTOR")
                 .requestMatchers(paths.matcher("/api/veiculos/**")).hasAnyRole("ATENDENTE", "GESTOR")
+                .requestMatchers(paths.matcher(HttpMethod.GET, "/api/ordens-servico/cliente/*")).hasAnyRole("CLIENTE", "ATENDENTE", "GESTOR")
 
                 // demais endpoints autenticados (GET OS por id/numero, etc.)
                 .anyRequest().authenticated()

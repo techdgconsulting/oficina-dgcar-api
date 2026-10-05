@@ -5,4 +5,8 @@ public interface TokenProviderPort {
     String extrairUsername(String token);
     String extrairRole(String token);
     boolean isTokenValido(String token);
+
+    default Long extrairClienteId(String token) {
+        return null;
+    }
 }

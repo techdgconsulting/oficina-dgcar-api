@@ -51,6 +51,12 @@ jwt:
   secret: ${JWT_SECRET:minha-chave-secreta-temporaria-trocar-em-producao}
   expiration: 86400000
 
+client:
+  jwt:
+    secret: ${CLIENT_JWT_SECRET:}
+    issuer: ${CLIENT_JWT_ISSUER:oficina-dgcar-auth-lambda}
+    audience: ${CLIENT_JWT_AUDIENCE:oficina-dgcar-api}
+
 oficina:
   notificacao:
     base-url: ${OFICINA_PUBLIC_BASE_URL:http://localhost:8080}

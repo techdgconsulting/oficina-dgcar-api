@@ -3,6 +3,10 @@ package br.com.oficina.adapters.out.security;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -58,5 +62,59 @@ class JwtTokenProviderAdapterTest {
         var svc = new JwtTokenProviderAdapter("curta", 3600000);
         String token = svc.gerarToken("teste", "USER");
         assertTrue(svc.isTokenValido(token));
+    }
+
+    @Test
+    @Story("Validar JWT externo de cliente")
+    void deveValidarTokenExternoDeCliente() {
+        String clientSecret = "segredo-cliente-externo-com-tamanho-suficiente";
+        var svc = new JwtTokenProviderAdapter(
+                "segredo-interno-com-tamanho-suficiente",
+                3600000,
+                clientSecret,
+                "oficina-dgcar-auth-lambda",
+                "oficina-dgcar-api");
+
+        String token = Jwts.builder()
+                .subject("12345678909")
+                .claim("clienteId", 42L)
+                .claim("tipo", "CLIENTE")
+                .claim("status", "ATIVO")
+                .issuer("oficina-dgcar-auth-lambda")
+                .audience().add("oficina-dgcar-api").and()
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 3600000))
+                .signWith(Keys.hmacShaKeyFor(clientSecret.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+
+        assertTrue(svc.isTokenValido(token));
+        assertEquals("12345678909", svc.extrairUsername(token));
+        assertEquals("CLIENTE", svc.extrairRole(token));
+        assertEquals(42L, svc.extrairClienteId(token));
+    }
+
+    @Test
+    @Story("Rejeitar JWT externo com audience invalida")
+    void deveRejeitarTokenExternoComAudienceInvalida() {
+        String clientSecret = "segredo-cliente-externo-com-tamanho-suficiente";
+        var svc = new JwtTokenProviderAdapter(
+                "segredo-interno-com-tamanho-suficiente",
+                3600000,
+                clientSecret,
+                "oficina-dgcar-auth-lambda",
+                "oficina-dgcar-api");
+
+        String token = Jwts.builder()
+                .subject("12345678909")
+                .claim("clienteId", 42L)
+                .claim("tipo", "CLIENTE")
+                .issuer("oficina-dgcar-auth-lambda")
+                .audience().add("outro-servico").and()
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 3600000))
+                .signWith(Keys.hmacShaKeyFor(clientSecret.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+
+        assertFalse(svc.isTokenValido(token));
     }
 }

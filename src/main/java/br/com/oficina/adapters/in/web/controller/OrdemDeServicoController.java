@@ -97,7 +97,7 @@ public class OrdemDeServicoController {
     }
 
     @PostMapping("/completa")
-    @PreAuthorize("hasAnyRole('ATENDENTE','GESTOR')")
+    @PreAuthorize("hasAnyRole('ATENDENTE','GESTOR') or (hasRole('CLIENTE') and @clienteSecurity.isDocumentoDoToken(#request.cliente().documento()))")
     @Operation(summary = "Criar ordem de servico completa com dados de cliente e veiculo")
     public ResponseEntity<OrdemServicoResponse> criarCompleta(
             @Valid @RequestBody CriarOrdemServicoCompletaRequest request,
@@ -137,7 +137,7 @@ public class OrdemDeServicoController {
     }
 
     @GetMapping("/cliente/{clienteId:\\d+}")
-    @PreAuthorize("hasAnyRole('ATENDENTE','GESTOR')")
+    @PreAuthorize("hasAnyRole('ATENDENTE','GESTOR') or @clienteSecurity.isClienteDoToken(#clienteId)")
     @Operation(summary = "Listar OS de um cliente")
     public ResponseEntity<List<OrdemServicoResponse>> listarPorCliente(@PathVariable Long clienteId) {
         return ResponseEntity.ok(listarOrdensServicoPorClienteInputPort.executeByCliente(clienteId).stream().map(mapper::toResponse).toList());
