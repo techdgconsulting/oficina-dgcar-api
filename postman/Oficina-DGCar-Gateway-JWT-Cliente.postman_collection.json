@@ -194,34 +194,15 @@
       "response": []
     },
     {
-      "name": "05 - Abrir OS completa como cliente autenticado",
+      "name": "05 - Bloquear abertura de OS por cliente externo",
       "event": [
-        {
-          "listen": "prerequest",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const suffix = Math.floor(Math.random() * 90) + 10;",
-              "pm.collectionVariables.set('placaTeste', `TST1A${suffix}`);"
-            ]
-          }
-        },
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('retorna 201 Created', function () {",
-              "  pm.response.to.have.status(201);",
-              "});",
-              "",
-              "const body = pm.response.json();",
-              "pm.collectionVariables.set('ordemServicoId', String(body.id));",
-              "pm.collectionVariables.set('ordemServicoNumero', body.numero);",
-              "",
-              "pm.test('OS foi criada para o CPF autenticado', function () {",
-              "  pm.expect(body.clienteDocumento.replace(/\\D/g, '')).to.eql(pm.collectionVariables.get('cpfClienteValido'));",
-              "  pm.expect(body.numero).to.be.a('string').and.not.empty;",
+              "pm.test('retorna 403 Forbidden', function () {",
+              "  pm.response.to.have.status(403);",
               "});"
             ]
           }
@@ -247,7 +228,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{cpfClienteValido}}\",\n    \"nome\": \"Cliente Evidencia Gateway\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"cliente.evidencia@dgcar.local\",\n    \"cep\": \"01310100\",\n    \"logradouro\": \"Av Paulista\",\n    \"bairro\": \"Bela Vista\",\n    \"cidade\": \"Sao Paulo\",\n    \"uf\": \"SP\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{placaTeste}}\",\n    \"marca\": \"Toyota\",\n    \"modelo\": \"Corolla Evidencia\",\n    \"ano\": 2024\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": 1,\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": []\n}"
+          "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{cpfClienteValido}}\",\n    \"nome\": \"Cliente Evidencia Gateway\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"cliente.evidencia@dgcar.local\",\n    \"cep\": \"01310100\",\n    \"logradouro\": \"Av Paulista\",\n    \"bairro\": \"Bela Vista\",\n    \"cidade\": \"Sao Paulo\",\n    \"uf\": \"SP\"\n  },\n  \"veiculo\": {\n    \"placa\": \"TST1A99\",\n    \"marca\": \"Toyota\",\n    \"modelo\": \"Corolla Evidencia\",\n    \"ano\": 2024\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": 1,\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": []\n}"
         },
         "url": {
           "raw": "{{gatewayBaseUrl}}/api/ordens-servico/completa",
@@ -284,18 +265,6 @@
     {
       "key": "outroClienteId",
       "value": "3"
-    },
-    {
-      "key": "placaTeste",
-      "value": ""
-    },
-    {
-      "key": "ordemServicoId",
-      "value": ""
-    },
-    {
-      "key": "ordemServicoNumero",
-      "value": ""
     }
   ]
 }

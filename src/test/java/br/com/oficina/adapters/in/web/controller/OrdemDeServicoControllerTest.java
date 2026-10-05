@@ -140,6 +140,26 @@ class OrdemDeServicoControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "CLIENTE")
+    @Story("Bloquear abertura de OS por cliente externo")
+    void deveBloquearCriacaoOSCompletaPorClienteExterno() throws Exception {
+        var req = new CriarOrdemServicoCompletaRequest(
+            new CriarOrdemServicoCompletaRequest.ClienteCompletoRequest(
+                "52998224725", "Maria", "11999999999", "maria@email.com",
+                "01001000", "Praca da Se", "Se", "Sao Paulo", "SP"),
+            new CriarOrdemServicoCompletaRequest.VeiculoCompletoRequest(
+                "ABC1D23", "Honda", "Civic", 2020),
+            List.of(new CriarOrdemServicoCompletaRequest.ServicoOSRequest(1L, 1)),
+            List.of()
+        );
+
+        mockMvc.perform(post("/api/ordens-servico/completa").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(req)))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     @WithMockUser(roles = "GESTOR")
     @Story("Buscar OS por ID via API")
     void deveBuscarPorId() throws Exception {
