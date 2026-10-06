@@ -364,6 +364,52 @@ jobs:
       - name: Wait for rollout
         run: kubectl rollout status deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=300s
 
+      - name: Publish backend URL to infrastructure repository
+        env:
+          GH_TOKEN: ${{ secrets.GH_AUTOMATION_TOKEN }}
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          INFRA_K8S_REPO: techdgconsulting/oficina-dgcar-infra-k8s
+        run: |
+          set -euo pipefail
+
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::GH_AUTOMATION_TOKEN secret is required to publish API_BACKEND_URL."
+            exit 1
+          fi
+
+          LOAD_BALANCER_HOSTNAME=""
+          LOAD_BALANCER_IP=""
+
+          for attempt in $(seq 1 30); do
+            LOAD_BALANCER_HOSTNAME="$(kubectl get svc oficina-api -n "$K8S_NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)"
+            LOAD_BALANCER_IP="$(kubectl get svc oficina-api -n "$K8S_NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+
+            if [ -n "$LOAD_BALANCER_HOSTNAME" ] || [ -n "$LOAD_BALANCER_IP" ]; then
+              break
+            fi
+
+            echo "Waiting for LoadBalancer endpoint... attempt $attempt/30"
+            sleep 10
+          done
+
+          BACKEND_HOST="${LOAD_BALANCER_HOSTNAME:-$LOAD_BALANCER_IP}"
+
+          if [ -z "$BACKEND_HOST" ]; then
+            echo "::error::LoadBalancer endpoint was not published by Kubernetes service oficina-api."
+            exit 1
+          fi
+
+          API_BACKEND_URL="http://$BACKEND_HOST"
+
+          gh secret set API_BACKEND_URL \
+            --repo "$INFRA_K8S_REPO" \
+            --env "$TARGET_ENVIRONMENT" \
+            --body "$API_BACKEND_URL"
+
+          echo "API_BACKEND_URL published to $INFRA_K8S_REPO/$TARGET_ENVIRONMENT."
+          echo "Application URL: $API_BACKEND_URL"
+          echo "Swagger URL: $API_BACKEND_URL/swagger-ui.html"
+
       - name: Print deployment evidence
         run: |
           kubectl get deployment,pods,svc,hpa -n "$K8S_NAMESPACE"
