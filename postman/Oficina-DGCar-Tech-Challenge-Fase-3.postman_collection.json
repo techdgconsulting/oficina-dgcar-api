@@ -1,0 +1,1298 @@
+{
+  "info": {
+    "_postman_id": "14089dee-681a-455c-91c3-4de6887b0d73",
+    "name": "Oficina DGCar Tech Challenge Fase 3",
+    "description": "Evidencia consolidada do Tech Challenge Fase 3: Gateway JWT Cliente e Fluxo Completo operacional.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Gateway JWT Cliente",
+      "item": [
+        {
+          "name": "01 - Autenticar cliente por CPF e senha",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('retorna 200 OK', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test('retorna accessToken Bearer', function () {",
+                  "  pm.expect(body.tokenType).to.eql('Bearer');",
+                  "  pm.expect(body.accessToken).to.be.a('string').and.not.empty;",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('clienteToken', body.accessToken);",
+                  "",
+                  "const payloadPart = body.accessToken.split('.')[1];",
+                  "const normalized = payloadPart.replace(/-/g, '+').replace(/_/g, '/');",
+                  "const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, '=');",
+                  "const payload = JSON.parse(atob(padded));",
+                  "",
+                  "pm.collectionVariables.set('cpfClienteValido', payload.sub);",
+                  "",
+                  "pm.test('JWT externo possui claims de cliente', function () {",
+                  "  pm.expect(payload.tipo).to.eql('CLIENTE');",
+                  "  pm.expect(payload.sub).to.eql(pm.collectionVariables.get('cpfClienteValido'));",
+                  "  pm.expect(payload.clienteId).to.exist;",
+                  "  pm.expect(payload.iss).to.eql('oficina-dgcar-auth-lambda');",
+                  "  pm.expect(payload.aud).to.eql('oficina-dgcar-api');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\",\n  \"senha\": \"{{senhaClienteValida}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/auth/cpf",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "cpf"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "02 - Negar autenticacao sem senha",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"retorna 400 Bad Request\", function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test(\"senha obrigatoria foi sinalizada\", function () {",
+                  "  pm.expect(body.error).to.eql(\"SENHA_OBRIGATORIA\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/auth/cpf",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "cpf"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "03 - Negar autenticacao com senha incorreta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"retorna 401 Unauthorized\", function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test(\"credenciais invalidas foram sinalizadas\", function () {",
+                  "  pm.expect(body.error).to.eql(\"CREDENCIAIS_INVALIDAS\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\",\n  \"senha\": \"SenhaErrada@123\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/auth/cpf",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "cpf"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "04 - Consultar propria OS por numero com JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"retorna 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.test(\"OS consultada pertence ao CPF autenticado\", function () {",
+                  "  pm.expect(body.numero).to.eql(pm.collectionVariables.get(\"numeroOrdemServico\"));",
+                  "  pm.expect(body.clienteDocumento.replace(/\\D/g, \"\")).to.eql(pm.collectionVariables.get(\"cpfClienteValido\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "numero",
+                "{{numeroOrdemServico}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "05 - Negar consulta de OS por numero sem token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('retorna 401 Unauthorized', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "numero",
+                "{{numeroOrdemServico}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "06 - Bloquear consulta de OS de outro cliente por numero",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('retorna 403 Forbidden', function () {",
+                  "  pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{outraOrdemServicoNumero}}",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "numero",
+                "{{outraOrdemServicoNumero}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "07 - Bloquear abertura de OS por cliente externo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('retorna 403 Forbidden', function () {",
+                  "  pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{cpfClienteValido}}\",\n    \"nome\": \"Cliente Evidencia Gateway\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"cliente.evidencia@dgcar.local\",\n    \"cep\": \"01310100\",\n    \"logradouro\": \"Av Paulista\",\n    \"bairro\": \"Bela Vista\",\n    \"cidade\": \"Sao Paulo\",\n    \"uf\": \"SP\"\n  },\n  \"veiculo\": {\n    \"placa\": \"TST1A99\",\n    \"marca\": \"Toyota\",\n    \"modelo\": \"Corolla Evidencia\",\n    \"ano\": 2024\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": 1,\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": []\n}"
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Fluxo Completo",
+      "item": [
+        {
+          "name": "00 - Preparar dados e Login GESTOR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"gestor1\",\n  \"password\": \"senha123\"\n}"
+            },
+            "description": "Antes de rodar esta pasta, defina a variavel da collection emailClienteNotificacao com o e-mail que deve receber as mensagens no Mailtrap/SMTP."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "function randomDigits(size) { var out = ''; for (var i = 0; i < size; i++) { out += Math.floor(Math.random() * 10); } return out; }",
+                  "function cpfCheckDigit(base) { var sum = 0; for (var i = 0; i < base.length; i++) { sum += parseInt(base[i], 10) * (base.length + 1 - i); } var mod = sum % 11; return mod < 2 ? 0 : 11 - mod; }",
+                  "function generateCpf() { var base = randomDigits(9); var d1 = cpfCheckDigit(base); var d2 = cpfCheckDigit(base + d1); return base + d1 + d2; }",
+                  "var email = pm.collectionVariables.get('emailClienteNotificacao');",
+                  "if (!email || email.indexOf('@') === -1) { throw new Error('Defina a variavel emailClienteNotificacao com um e-mail valido antes de rodar esta pasta.'); }",
+                  "var runId = Date.now().toString().slice(-8);",
+                  "pm.collectionVariables.set('email_runId', runId);",
+                  "pm.collectionVariables.set('email_documento', generateCpf());",
+                  "pm.collectionVariables.set('email_placa', 'EML' + runId.slice(-1) + 'A' + runId.slice(-2));",
+                  "['email_tokenGestor','email_tokenAtendente','email_tokenMecanico','email_servicoId','email_pecaId','email_osId','email_osNumero','email_orcamentoDecisaoToken'].forEach(function(k) { pm.collectionVariables.unset(k); });",
+                  "console.log('[EMAIL E2E] runId=' + runId + ', documento=' + pm.collectionVariables.get('email_documento') + ', placa=' + pm.collectionVariables.get('email_placa') + ', email=' + email);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 00] Login GESTOR 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[EMAIL 00] Token GESTOR recebido', () => pm.expect(json.token).to.be.a('string').and.not.be.empty);",
+                  "pm.collectionVariables.set('email_tokenGestor', json.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "01 - Login ATENDENTE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"atendente1\",\n  \"password\": \"senha123\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 01] Login ATENDENTE 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('email_tokenAtendente', json.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 - Login MECANICO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"mecanico1\",\n  \"password\": \"senha123\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 02] Login MECANICO 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('email_tokenMecanico', json.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 - Criar Servico para OS de notificacao",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/servicos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "servicos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{email_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Servico Email E2E {{email_runId}}\",\n  \"descricao\": \"Servico criado para validar notificacoes de status por e-mail\",\n  \"valorUnitario\": 320.00,\n  \"tempoEstimadoMinutos\": 90\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 03] Servico criado 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('email_servicoId', json.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "04 - Criar Peca para OS de notificacao",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/pecas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pecas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{email_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Peca Email E2E {{email_runId}}\",\n  \"descricao\": \"Peca criada para validar notificacoes de status por e-mail\",\n  \"quantidadeEstoque\": 20,\n  \"valorUnitario\": 85.00,\n  \"estoqueMinimo\": 2\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 04] Peca criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('email_pecaId', json.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "05 - Criar OS completa com e-mail do cliente (dispara RECEBIDA)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{email_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{email_documento}}\",\n    \"nome\": \"Cliente Email E2E {{email_runId}}\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"{{emailClienteNotificacao}}\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{email_placa}}\",\n    \"marca\": \"Volkswagen\",\n    \"modelo\": \"Polo Email E2E\",\n    \"ano\": 2022\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": {{email_servicoId}},\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": {{email_pecaId}},\n      \"quantidade\": 1\n    }\n  ]\n}"
+            },
+            "description": "Usa emailClienteNotificacao no cadastro do cliente. Esta criacao ja deve disparar a notificacao de status RECEBIDA."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 05] OS completa criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.test('[EMAIL 05] Status inicial RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));",
+                  "pm.collectionVariables.set('email_osId', json.id);",
+                  "pm.collectionVariables.set('email_osNumero', json.numero);",
+                  "console.log('[EMAIL 05] Deve chegar e-mail de status RECEBIDA para', pm.collectionVariables.get('emailClienteNotificacao'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "06 - Iniciar diagnostico (dispara EM_DIAGNOSTICO)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{email_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{email_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{email_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 06] Diagnostico iniciado 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[EMAIL 06] Status EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "07 - Gerar orcamento (dispara AGUARDANDO_APROVACAO)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{email_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{email_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{email_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 07] Orcamento gerado 200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "08 - Notificar cliente sobre orcamento (e-mail com links de decisao)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{email_osId}}/orcamento/notificar-cliente",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{email_osId}}",
+                "orcamento",
+                "notificar-cliente"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{email_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 08] Notificacao de orcamento criada 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[EMAIL 08] E-mail destino usa variavel informada', () => pm.expect(json.emailDestino).to.eql(pm.collectionVariables.get('emailClienteNotificacao')));",
+                  "pm.test('[EMAIL 08] Links de aprovacao e recusa retornados', () => { pm.expect(json.linkAprovacao).to.include('/aprovar'); pm.expect(json.linkRecusa).to.include('/recusar'); });",
+                  "var token = String(json.linkAprovacao).split('/decisoes-cliente/')[1].split('/aprovar')[0];",
+                  "pm.collectionVariables.set('email_orcamentoDecisaoToken', token);",
+                  "console.log('[EMAIL 08] Deve chegar e-mail de orcamento com links de decisao. Token salvo.');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "09 - Aprovar orcamento por token (dispara EM_EXECUCAO)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orcamentos/decisoes-cliente/{{email_orcamentoDecisaoToken}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orcamentos",
+                "decisoes-cliente",
+                "{{email_orcamentoDecisaoToken}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 09] Aprovacao por token 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[EMAIL 09] OS EM_EXECUCAO', () => pm.expect(pm.response.json().statusOrdemServico).to.eql('EM_EXECUCAO'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "10 - Finalizar servico (dispara FINALIZADA)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{email_osId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{email_osId}}",
+                "finalizar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{email_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 10] Servico finalizado 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[EMAIL 10] Status FINALIZADA', () => pm.expect(pm.response.json().status).to.eql('FINALIZADA'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "11 - Registrar pagamento PIX (dispara AGUARDANDO_RETIRADA)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{email_osId}}/pagamento?metodoPagamento=PIX",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{email_osId}}",
+                "pagamento"
+              ],
+              "query": [
+                {
+                  "key": "metodoPagamento",
+                  "value": "PIX"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{email_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Para garantir o e-mail de AGUARDANDO_RETIRADA e permitir a entrega, use PAGAMENTO_GATEWAY_APPROVAL_RATE=1.0 no ambiente Docker."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 11] Pagamento aprovado 200', () => {",
+                  "  if (pm.response.code !== 200) { console.warn('Pagamento recusado pelo gateway mock. Para este fluxo, configure PAGAMENTO_GATEWAY_APPROVAL_RATE=1.0 no docker-compose e rode novamente.'); }",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('[EMAIL 11] Status AGUARDANDO_RETIRADA', () => pm.expect(pm.response.json().status).to.eql('AGUARDANDO_RETIRADA'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "12 - Entregar veiculo (dispara ENTREGUE)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{email_osId}}/entregar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{email_osId}}",
+                "entregar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{email_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 12] Veiculo entregue 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[EMAIL 12] Status ENTREGUE', () => pm.expect(pm.response.json().status).to.eql('ENTREGUE'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "13 - Consultar tracking publico pelo numero",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/numero/{{email_osNumero}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "numero",
+                "{{email_osNumero}}",
+                "status"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 13] Tracking publico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[EMAIL 13] Status final ENTREGUE', () => pm.expect(pm.response.json().status).to.eql('ENTREGUE'));",
+                  "pm.test('[EMAIL 13] Numero da OS correto', () => pm.expect(pm.response.json().numero).to.eql(pm.collectionVariables.get('email_osNumero')));",
+                  "console.log('[EMAIL E2E] Fluxo concluido. Confira no Mailtrap os e-mails para: ' + pm.collectionVariables.get('emailClienteNotificacao'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "14 - Listar fila operacional de OS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/fila",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "fila"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{email_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Valida a fila operacional da oficina: apenas OS abertas em RECEBIDA, EM_DIAGNOSTICO, AGUARDANDO_APROVACAO ou EM_EXECUCAO, ordenadas por prioridade operacional e sem OS finalizadas/entregues."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('[EMAIL 14] Fila operacional 200', () => pm.response.to.have.status(200));",
+                  "var body;",
+                  "try {",
+                  "  body = pm.response.json();",
+                  "} catch (e) {",
+                  "  throw new Error('[EMAIL 14] Resposta nao e JSON. Body recebido: ' + pm.response.text());",
+                  "}",
+                  "pm.test('[EMAIL 14] Resposta e array', () => pm.expect(body).to.be.an('array'));",
+                  "var permitidos = ['EM_EXECUCAO', 'AGUARDANDO_APROVACAO', 'EM_DIAGNOSTICO', 'RECEBIDA'];",
+                  "var excluidos = ['FINALIZADA', 'AGUARDANDO_RETIRADA', 'ENTREGUE', 'CANCELADA'];",
+                  "pm.test('[EMAIL 14] Fila contem apenas status operacionais', () => body.forEach(os => pm.expect(permitidos).to.include(os.status)));",
+                  "pm.test('[EMAIL 14] Fila nao contem status encerrados', () => body.forEach(os => pm.expect(excluidos).to.not.include(os.status)));",
+                  "var prioridade = { EM_EXECUCAO: 1, AGUARDANDO_APROVACAO: 2, EM_DIAGNOSTICO: 3, RECEBIDA: 4 };",
+                  "pm.test('[EMAIL 14] Ordenacao por prioridade operacional', () => { for (let i = 1; i < body.length; i++) { pm.expect(prioridade[body[i - 1].status]).to.be.at.most(prioridade[body[i].status]); } });",
+                  "var osNumero = pm.collectionVariables.get('email_osNumero');",
+                  "pm.test('[EMAIL 14] OS entregue no fluxo nao aparece na fila', () => pm.expect(body.some(os => os.numero === osNumero)).to.eql(false));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        }
+      ],
+      "description": "Fluxo dedicado para validar envio real de notificacoes por e-mail ao cliente. Antes de executar, configure emailClienteNotificacao com um e-mail valido e rode a aplicacao com OFICINA_EMAIL_MODE=SMTP. Para garantir todos os status, configure PAGAMENTO_GATEWAY_APPROVAL_RATE=1.0."
+    }
+  ],
+  "variable": [
+    {
+      "key": "gatewayBaseUrl",
+      "value": "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com"
+    },
+    {
+      "key": "cpfClienteValido",
+      "value": "52398614808"
+    },
+    {
+      "key": "senhaClienteValida",
+      "value": "Cliente@123"
+    },
+    {
+      "key": "clienteToken",
+      "value": ""
+    },
+    {
+      "key": "numeroOrdemServico",
+      "value": "OS-2026-00001"
+    },
+    {
+      "key": "outraOrdemServicoNumero",
+      "value": "OS-2026-00003"
+    },
+    {
+      "key": "baseUrl",
+      "value": "http://a6cd97e4bf34346e4887022b2cc4d802-1644299429.us-east-1.elb.amazonaws.com"
+    },
+    {
+      "key": "tokenGestor",
+      "value": ""
+    },
+    {
+      "key": "e2e_servicoId",
+      "value": ""
+    },
+    {
+      "key": "e2e_pecaId",
+      "value": ""
+    },
+    {
+      "key": "tokenAtendente",
+      "value": ""
+    },
+    {
+      "key": "e2e_clienteId",
+      "value": ""
+    },
+    {
+      "key": "e2e_veiculoId",
+      "value": ""
+    },
+    {
+      "key": "e2e_osId",
+      "value": ""
+    },
+    {
+      "key": "e2e_osNumero",
+      "value": ""
+    },
+    {
+      "key": "tokenMecanico",
+      "value": ""
+    },
+    {
+      "key": "rbac_servicoId",
+      "value": ""
+    },
+    {
+      "key": "rbac_pecaId",
+      "value": ""
+    },
+    {
+      "key": "rbac_clienteId",
+      "value": ""
+    },
+    {
+      "key": "rbac_veiculoId",
+      "value": ""
+    },
+    {
+      "key": "rbac_osDeniedId",
+      "value": ""
+    },
+    {
+      "key": "rbac_osDeniedNum",
+      "value": ""
+    },
+    {
+      "key": "rbac_osMecId",
+      "value": ""
+    },
+    {
+      "key": "rbac_osAtdId",
+      "value": ""
+    },
+    {
+      "key": "rbac_atdClienteId",
+      "value": ""
+    },
+    {
+      "key": "rbac_atdVeiculoId",
+      "value": ""
+    },
+    {
+      "key": "rbac_osAtdCriouId",
+      "value": ""
+    },
+    {
+      "key": "ts_servicoId",
+      "value": ""
+    },
+    {
+      "key": "ts_pecaId",
+      "value": ""
+    },
+    {
+      "key": "ts_clienteId",
+      "value": ""
+    },
+    {
+      "key": "ts_veiculoId",
+      "value": ""
+    },
+    {
+      "key": "ts_osVp",
+      "value": ""
+    },
+    {
+      "key": "ts_osRej",
+      "value": ""
+    },
+    {
+      "key": "ts_osNovProb",
+      "value": ""
+    },
+    {
+      "key": "ts_osInvRecebida",
+      "value": ""
+    },
+    {
+      "key": "ts_osInvDiag",
+      "value": ""
+    },
+    {
+      "key": "ts_osInvAguard",
+      "value": ""
+    },
+    {
+      "key": "ts_osInvExec",
+      "value": ""
+    },
+    {
+      "key": "ts_osInvFinalizada",
+      "value": ""
+    },
+    {
+      "key": "ts_osInvEntregue",
+      "value": ""
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "clienteId",
+      "value": ""
+    },
+    {
+      "key": "veiculoId",
+      "value": ""
+    },
+    {
+      "key": "servicoId",
+      "value": ""
+    },
+    {
+      "key": "pecaId",
+      "value": ""
+    },
+    {
+      "key": "osId",
+      "value": ""
+    },
+    {
+      "key": "osNumero",
+      "value": ""
+    },
+    {
+      "key": "osRejeicaoId",
+      "value": ""
+    },
+    {
+      "key": "run_clienteId",
+      "value": ""
+    },
+    {
+      "key": "run_veiculoId",
+      "value": ""
+    },
+    {
+      "key": "run_servicoId",
+      "value": ""
+    },
+    {
+      "key": "run_pecaId",
+      "value": ""
+    },
+    {
+      "key": "run_osId",
+      "value": ""
+    },
+    {
+      "key": "run_osNumero",
+      "value": ""
+    },
+    {
+      "key": "emailClienteNotificacao",
+      "value": "seu.email@exemplo.com"
+    },
+    {
+      "key": "email_runId",
+      "value": ""
+    },
+    {
+      "key": "email_documento",
+      "value": ""
+    },
+    {
+      "key": "email_placa",
+      "value": ""
+    },
+    {
+      "key": "email_tokenGestor",
+      "value": ""
+    },
+    {
+      "key": "email_tokenAtendente",
+      "value": ""
+    },
+    {
+      "key": "email_tokenMecanico",
+      "value": ""
+    },
+    {
+      "key": "email_servicoId",
+      "value": ""
+    },
+    {
+      "key": "email_pecaId",
+      "value": ""
+    },
+    {
+      "key": "email_osId",
+      "value": ""
+    },
+    {
+      "key": "email_osNumero",
+      "value": ""
+    },
+    {
+      "key": "email_orcamentoDecisaoToken",
+      "value": ""
+    }
+  ]
+}
