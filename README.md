@@ -449,6 +449,18 @@ Regras implementadas:
 - A API nao autentica cliente externo diretamente; ela apenas valida o JWT externo emitido pela Lambda.
 - Clientes criados sem processo de definicao de senha nao autenticam na Lambda ate receberem hash valido.
 
+### Modelo De Senha Do Cliente Externo
+
+A migration `V17__adicionar_senha_hash_clientes.sql` adiciona a coluna `clientes.senha_hash` para suportar autenticacao externa por CPF e senha na Lambda.
+
+Regras implementadas:
+
+- `senha_hash` armazena somente hash bcrypt.
+- A senha do cliente nao aparece em `ClienteRequest`.
+- A senha do cliente nao aparece em `ClienteResponse`.
+- A API nao autentica cliente externo diretamente; ela apenas valida o JWT externo emitido pela Lambda.
+- Clientes criados sem processo de definicao de senha nao autenticam na Lambda ate receberem hash valido.
+
 ## Validacoes Realizadas
 
 Foi executada a suite completa de testes:
