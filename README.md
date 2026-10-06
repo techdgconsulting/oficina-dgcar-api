@@ -333,8 +333,8 @@ Secrets obrigatorios no environment escolhido:
 | `JWT_SECRET` | Segredo do JWT interno |
 | `CLIENT_JWT_SECRET` | Mesmo segredo usado pela Lambda Auth CPF + Senha |
 | `GH_AUTOMATION_TOKEN` | Token GitHub com permissao para gravar secrets no repo `oficina-dgcar-infra-k8s` |
-| `SMTP_USERNAME` | Usuario SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
-| `SMTP_PASSWORD` | Senha SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
+| `SMTP_USERNAME` | Usuario SMTP do Mailtrap quando e-mail esta em modo `SMTP` |
+| `SMTP_PASSWORD` | Senha SMTP do Mailtrap quando e-mail esta em modo `SMTP` |
 
 O `GH_AUTOMATION_TOKEN` fica configurado no mesmo environment usado pelo deploy da API. Esse token permite que o workflow grave `API_BACKEND_URL` no repo `oficina-dgcar-infra-k8s` depois que o Service `LoadBalancer` publica o endpoint HTTP da aplicacao.
 
@@ -388,8 +388,14 @@ gh variable set EKS_CLUSTER_NAME --repo $repo --env $envName --body "<eks_cluste
 gh variable set SPRING_DATASOURCE_URL --repo $repo --env $envName --body "<spring_datasource_url>"
 gh variable set CLIENT_JWT_ISSUER --repo $repo --env $envName --body "oficina-dgcar-auth-lambda"
 gh variable set CLIENT_JWT_AUDIENCE --repo $repo --env $envName --body "oficina-dgcar-api"
-gh variable set OFICINA_EMAIL_ENABLED --repo $repo --env $envName --body "false"
-gh variable set OFICINA_EMAIL_MODE --repo $repo --env $envName --body "LOG"
+gh variable set OFICINA_EMAIL_ENABLED --repo $repo --env $envName --body "true"
+gh variable set OFICINA_EMAIL_MODE --repo $repo --env $envName --body "SMTP"
+gh variable set OFICINA_EMAIL_REMETENTE --repo $repo --env $envName --body "no-reply@dgcar.local"
+gh variable set SMTP_HOST --repo $repo --env $envName --body "sandbox.smtp.mailtrap.io"
+gh variable set SMTP_PORT --repo $repo --env $envName --body "587"
+gh variable set SMTP_AUTH --repo $repo --env $envName --body "true"
+gh variable set SMTP_STARTTLS_ENABLE --repo $repo --env $envName --body "true"
+gh variable set MANAGEMENT_HEALTH_MAIL_ENABLED --repo $repo --env $envName --body "false"
 ```
 
 Secrets cadastrados via GitHub CLI:
@@ -405,6 +411,8 @@ $springDatasourcePassword | gh secret set SPRING_DATASOURCE_PASSWORD --repo $rep
 $clientJwtSecret | gh secret set CLIENT_JWT_SECRET --repo $repo --env $envName
 $jwtSecret | gh secret set JWT_SECRET --repo $repo --env $envName
 $ghAutomationToken | gh secret set GH_AUTOMATION_TOKEN --repo $repo --env $envName
+$smtpUsername | gh secret set SMTP_USERNAME --repo $repo --env $envName
+$smtpPassword | gh secret set SMTP_PASSWORD --repo $repo --env $envName
 ```
 
 No ambiente `homolog`, a configuracao foi cadastrada com os valores coletados dos recursos AWS provisionados:
@@ -415,8 +423,18 @@ No ambiente `homolog`, a configuracao foi cadastrada com os valores coletados do
 | `ECR_REPOSITORY` | `857145323352.dkr.ecr.us-east-1.amazonaws.com/oficina-dgcar/oficina-api` |
 | `EKS_CLUSTER_NAME` | `oficina-dgcar-homolog-eks` |
 | `SPRING_DATASOURCE_URL` | `jdbc:postgresql://oficina-dgcar-homolog-postgres.curuqcwkaa6w.us-east-1.rds.amazonaws.com:5432/oficina` |
+| `OFICINA_EMAIL_ENABLED` | `true` |
+| `OFICINA_EMAIL_MODE` | `SMTP` |
+| `OFICINA_EMAIL_REMETENTE` | `no-reply@dgcar.local` |
+| `SMTP_HOST` | `sandbox.smtp.mailtrap.io` |
+| `SMTP_PORT` | `587` |
+| `SMTP_AUTH` | `true` |
+| `SMTP_STARTTLS_ENABLE` | `true` |
+| `MANAGEMENT_HEALTH_MAIL_ENABLED` | `false` |
 
 Os secrets `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` e `CLIENT_JWT_SECRET` foram copiados da configuracao da Lambda `oficina-dgcar-homolog-auth-cpf` sem exposicao dos valores no terminal. O `JWT_SECRET` interno da API foi gerado especificamente para o environment `homolog`.
+
+As credenciais `SMTP_USERNAME` e `SMTP_PASSWORD` devem ser cadastradas no environment `homolog` com os dados SMTP da inbox Mailtrap. O repositorio historico possui esses secrets cadastrados, mas o GitHub nao permite consultar seus valores depois da criacao.
 
 Variaveis opcionais no environment escolhido:
 
@@ -424,10 +442,10 @@ Variaveis opcionais no environment escolhido:
 |---|---|
 | `CLIENT_JWT_ISSUER` | `oficina-dgcar-auth-lambda` |
 | `CLIENT_JWT_AUDIENCE` | `oficina-dgcar-api` |
-| `OFICINA_EMAIL_ENABLED` | `false` |
-| `OFICINA_EMAIL_MODE` | `LOG` |
+| `OFICINA_EMAIL_ENABLED` | `true` em homolog com Mailtrap |
+| `OFICINA_EMAIL_MODE` | `SMTP` em homolog com Mailtrap |
 | `OFICINA_EMAIL_REMETENTE` | `no-reply@dgcar.local` |
-| `SMTP_HOST` | `localhost` |
+| `SMTP_HOST` | `sandbox.smtp.mailtrap.io` em homolog com Mailtrap |
 | `SMTP_PORT` | `587` |
 | `SMTP_AUTH` | `true` |
 | `SMTP_STARTTLS_ENABLE` | `true` |
