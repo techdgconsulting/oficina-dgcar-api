@@ -13,3 +13,9 @@ allure-report/
 .vscode/
 .DS_Store
 Thumbs.db
+postman/.gitignore
+postman/.dependencies/
+postman/.postman/
+postman/postman/
+postman/Oficina DGCar - Gateway JWT Cliente/
+postman/OficinaMecanica — Suite Completa/
