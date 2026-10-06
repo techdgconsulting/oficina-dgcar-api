@@ -474,13 +474,13 @@ Foram adicionadas validacoes automatizadas para:
 - Pull Requests foram mantidos como caminho obrigatorio de merge.
 - GitHub Environments `homolog` e `prod` foram configurados para aprovacao manual antes de deploy.
 
-## Status Da Implementacao
+## Entrega Da API
 
 Foi implementada a validacao do JWT externo de cliente na API Spring Boot.
 
 Foi documentada a classificacao das rotas publicas, rotas protegidas por JWT de cliente e rotas protegidas por JWT interno.
 
-O proximo passo operacional e publicar esta alteracao no GitHub por Pull Request, aprovar o merge e executar o deploy da aplicacao no EKS para conectar o API Gateway tambem as rotas da API principal.
+O fluxo externo de cliente consulta a OS por numero legivel e valida o CPF da OS contra o `sub` do JWT `CLIENTE`, sem expor `clienteId` como entrada do cliente.
 
 ## Origem Historica
 
