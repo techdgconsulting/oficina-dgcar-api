@@ -304,7 +304,9 @@ Fluxo executado pelo workflow:
 4. Atualiza o kubeconfig do EKS.
 5. Cria ou atualiza namespace, ConfigMap, Secret, Deployment, Service e HPA.
 6. Aguarda o rollout do deployment.
-7. Exibe pods, service, HPA e URL do LoadBalancer.
+7. Coleta o endpoint publicado pelo Service `LoadBalancer`.
+8. Publica `API_BACKEND_URL` no environment correspondente do repo `oficina-dgcar-infra-k8s`.
+9. Exibe pods, service, HPA e URL do LoadBalancer.
 
 Execucao pelo GitHub:
 
@@ -330,6 +332,7 @@ Secrets obrigatorios no environment escolhido:
 | `SPRING_DATASOURCE_PASSWORD` | Senha do RDS PostgreSQL |
 | `JWT_SECRET` | Segredo do JWT interno |
 | `CLIENT_JWT_SECRET` | Mesmo segredo usado pela Lambda Auth CPF + Senha |
+| `GH_AUTOMATION_TOKEN` | Token GitHub com permissao para gravar secrets no repo `oficina-dgcar-infra-k8s` |
 | `SMTP_USERNAME` | Usuario SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
 | `SMTP_PASSWORD` | Senha SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
 
@@ -343,6 +346,8 @@ Variaveis obrigatorias no environment escolhido:
 | `SPRING_DATASOURCE_URL` | Output `spring_datasource_url` do repo `oficina-dgcar-infra-db` |
 
 O workflow tambem aceita `AWS_REGION`, `ECR_REPOSITORY`, `EKS_CLUSTER_NAME` e `SPRING_DATASOURCE_URL` como Secrets. Quando os dois existem, o valor em Secret tem prioridade.
+
+Ao final do deploy, o workflow consulta o Service `oficina-api`, monta a URL HTTP do LoadBalancer e grava automaticamente o secret `API_BACKEND_URL` no environment `homolog` ou `prod` do repo `oficina-dgcar-infra-k8s`. Com isso, o passo seguinte do `infra-k8s` cria a rota proxy `ANY /{proxy+}` do API Gateway sem cadastro manual desse endpoint.
 
 Origem dos valores:
 
@@ -397,6 +402,7 @@ $springDatasourceUsername | gh secret set SPRING_DATASOURCE_USERNAME --repo $rep
 $springDatasourcePassword | gh secret set SPRING_DATASOURCE_PASSWORD --repo $repo --env $envName
 $clientJwtSecret | gh secret set CLIENT_JWT_SECRET --repo $repo --env $envName
 $jwtSecret | gh secret set JWT_SECRET --repo $repo --env $envName
+$ghAutomationToken | gh secret set GH_AUTOMATION_TOKEN --repo $repo --env $envName
 ```
 
 No ambiente `homolog`, a configuracao foi cadastrada com os valores coletados dos recursos AWS provisionados:
@@ -436,18 +442,6 @@ kubectl get svc oficina-api -n oficina
 ```
 
 O deploy da API tambem executa as migrations Flyway na inicializacao da aplicacao. A Lambda Auth CPF + Senha depende dessas tabelas e dados para retornar JWT no endpoint `POST /auth/cpf`.
-
-### Modelo De Senha Do Cliente Externo
-
-A migration `V17__adicionar_senha_hash_clientes.sql` adiciona a coluna `clientes.senha_hash` para suportar autenticacao externa por CPF e senha na Lambda.
-
-Regras implementadas:
-
-- `senha_hash` armazena somente hash bcrypt.
-- A senha do cliente nao aparece em `ClienteRequest`.
-- A senha do cliente nao aparece em `ClienteResponse`.
-- A API nao autentica cliente externo diretamente; ela apenas valida o JWT externo emitido pela Lambda.
-- Clientes criados sem processo de definicao de senha nao autenticam na Lambda ate receberem hash valido.
 
 ### Modelo De Senha Do Cliente Externo
 
