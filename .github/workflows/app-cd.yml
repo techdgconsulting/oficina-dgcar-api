@@ -373,7 +373,7 @@ jobs:
           set -euo pipefail
 
           if [ -z "$GH_TOKEN" ]; then
-            echo "::error::GH_AUTOMATION_TOKEN secret is required to publish API_BACKEND_URL."
+            echo "::error::O deploy da API foi concluido, mas a publicacao automatica do endpoint no repo oficina-dgcar-infra-k8s precisa do secret GH_AUTOMATION_TOKEN no environment $TARGET_ENVIRONMENT. Cadastre esse secret no repo oficina-dgcar-api para que o workflow grave API_BACKEND_URL e libere o proximo apply do API Gateway."
             exit 1
           fi
 
@@ -395,7 +395,7 @@ jobs:
           BACKEND_HOST="${LOAD_BALANCER_HOSTNAME:-$LOAD_BALANCER_IP}"
 
           if [ -z "$BACKEND_HOST" ]; then
-            echo "::error::LoadBalancer endpoint was not published by Kubernetes service oficina-api."
+            echo "::error::A aplicacao foi enviada ao Kubernetes, mas o Service oficina-api ainda nao publicou o endpoint do LoadBalancer. Reexecute o deploy quando o provisionamento do LoadBalancer estiver disponivel no EKS."
             exit 1
           fi
 
@@ -406,9 +406,9 @@ jobs:
             --env "$TARGET_ENVIRONMENT" \
             --body "$API_BACKEND_URL"
 
-          echo "API_BACKEND_URL published to $INFRA_K8S_REPO/$TARGET_ENVIRONMENT."
-          echo "Application URL: $API_BACKEND_URL"
-          echo "Swagger URL: $API_BACKEND_URL/swagger-ui.html"
+          echo "API_BACKEND_URL gravado em $INFRA_K8S_REPO/$TARGET_ENVIRONMENT."
+          echo "Aplicacao disponivel em: $API_BACKEND_URL"
+          echo "Swagger disponivel em: $API_BACKEND_URL/swagger-ui.html"
 
       - name: Print deployment evidence
         run: |
