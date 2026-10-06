@@ -31,7 +31,16 @@ A validacao do JWT externo foi implementada tambem na aplicacao para defesa em p
 - `oficina-dgcar-auth-lambda`: emite JWT externo de cliente no fluxo `POST /auth/cpf`.
 - `oficina-dgcar-infra-db`: provisiona o RDS PostgreSQL consumido pela aplicacao.
 - `oficina-dgcar-infra-k8s`: provisiona EKS, ECR, API Gateway e integra o Gateway com a aplicacao.
+- `oficina-dgcar-docs`: centraliza documentacao arquitetural, RFCs, ADRs, diagramas, banco, observabilidade e evidencias.
 - `mvp-posfiap-oficina-mecanica`: permanece como repositorio historico da evolucao.
+
+## Documentacao Central
+
+A documentacao arquitetural completa do Tech Challenge 3 esta centralizada em:
+
+[oficina-dgcar-docs](https://github.com/techdgconsulting/oficina-dgcar-docs)
+
+Este repositorio mantem apenas a documentacao especifica da aplicacao principal, incluindo execucao, deploy, variaveis, rotas e validacoes da API.
 
 ## Arquitetura De Entrada
 
