@@ -2,12 +2,12 @@
   "info": {
     "_postman_id": "0dbaec97-967b-4dd9-9737-0f64a0fa8fe0",
     "name": "Oficina DGCar - Gateway JWT Cliente",
-    "description": "Evidencia do fluxo CPF -> Lambda Auth -> JWT CLIENTE -> API Spring protegida pelo API Gateway.",
+    "description": "Evidencia do fluxo CPF + senha -> Lambda Auth -> JWT CLIENTE -> API Spring protegida pelo API Gateway.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "01 - Autenticar cliente por CPF",
+      "name": "01 - Autenticar cliente por CPF e senha",
       "event": [
         {
           "listen": "test",
@@ -55,6 +55,51 @@
         ],
         "body": {
           "mode": "raw",
+          "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\",\n  \"senha\": \"{{senhaClienteValida}}\"\n}"
+        },
+        "url": {
+          "raw": "{{gatewayBaseUrl}}/auth/cpf",
+          "host": [
+            "{{gatewayBaseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "cpf"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "02 - Negar autenticacao sem senha",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"retorna 400 Bad Request\", function () {",
+              "  pm.response.to.have.status(400);",
+              "});",
+              "",
+              "const body = pm.response.json();",
+              "pm.test(\"senha obrigatoria foi sinalizada\", function () {",
+              "  pm.expect(body.error).to.eql(\"SENHA_OBRIGATORIA\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
           "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\"\n}"
         },
         "url": {
@@ -71,7 +116,52 @@
       "response": []
     },
     {
-      "name": "02 - Listar OS do proprio cliente com JWT",
+      "name": "03 - Negar autenticacao com senha incorreta",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"retorna 401 Unauthorized\", function () {",
+              "  pm.response.to.have.status(401);",
+              "});",
+              "",
+              "const body = pm.response.json();",
+              "pm.test(\"credenciais invalidas foram sinalizadas\", function () {",
+              "  pm.expect(body.error).to.eql(\"CREDENCIAIS_INVALIDAS\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\",\n  \"senha\": \"SenhaErrada@123\"\n}"
+        },
+        "url": {
+          "raw": "{{gatewayBaseUrl}}/auth/cpf",
+          "host": [
+            "{{gatewayBaseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "cpf"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "04 - Listar OS do proprio cliente com JWT",
       "event": [
         {
           "listen": "test",
@@ -118,7 +208,7 @@
       "response": []
     },
     {
-      "name": "03 - Negar listagem sem token",
+      "name": "05 - Negar listagem sem token",
       "event": [
         {
           "listen": "test",
@@ -151,7 +241,7 @@
       "response": []
     },
     {
-      "name": "04 - Bloquear acesso a outro cliente",
+      "name": "06 - Bloquear acesso a outro cliente",
       "event": [
         {
           "listen": "test",
@@ -194,7 +284,7 @@
       "response": []
     },
     {
-      "name": "05 - Bloquear abertura de OS por cliente externo",
+      "name": "07 - Bloquear abertura de OS por cliente externo",
       "event": [
         {
           "listen": "test",
@@ -253,6 +343,10 @@
     {
       "key": "cpfClienteValido",
       "value": "52398614808"
+    },
+    {
+      "key": "senhaClienteValida",
+      "value": "Cliente@123"
     },
     {
       "key": "clienteToken",

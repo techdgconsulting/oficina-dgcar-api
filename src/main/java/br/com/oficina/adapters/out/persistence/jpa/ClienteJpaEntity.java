@@ -39,4 +39,7 @@ public class ClienteJpaEntity {
     private String bairro;
     private String cidade;
     private String uf;
+
+    @Column(name = "senha_hash")
+    private String senhaHash;
 }
