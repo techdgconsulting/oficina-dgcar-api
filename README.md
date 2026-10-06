@@ -102,8 +102,8 @@ Validacoes implementadas na API:
 - `issuer` igual a `CLIENT_JWT_ISSUER`.
 - `audience` igual a `CLIENT_JWT_AUDIENCE`.
 - Claim `tipo=CLIENTE`.
-- Claim `clienteId` para restricao de acesso por cliente.
-- Claim `sub` com CPF normalizado do cliente autenticado.
+- Claim `clienteId` como identificador interno rastreavel.
+- Claim `sub` com CPF normalizado do cliente autenticado, usado para restringir a consulta da propria OS.
 
 O login interno de funcionarios continua separado e usa `username + senha` na aplicacao Spring. O login externo de clientes usa `CPF + senha` na Lambda e emite apenas JWT com `tipo=CLIENTE`.
 
@@ -136,14 +136,16 @@ As rotas abaixo aceitam JWT externo `CLIENTE` emitido pela Lambda, alem dos perf
 
 | Metodo | Rota | Regra implementada |
 |---|---|---|
-| `GET` | `/api/ordens-servico/cliente/{clienteId}` | `CLIENTE` pode listar apenas ordens do proprio `clienteId` |
+| `GET` | `/api/ordens-servico/numero/{numero}` | `CLIENTE` pode consultar apenas OS vinculada ao CPF do proprio JWT |
+
+O endpoint `/api/ordens-servico/cliente/{clienteId}` permanece para uso interno/autorizado, mas nao e o fluxo recomendado para cliente externo porque `clienteId` e identificador interno. Para cliente externo, a consulta demonstravel usa o numero legivel da OS, por exemplo `OS-2026-00001`.
 
 Clientes externos nao abrem ordens de servico pela API. A criacao de OS permanece restrita a perfis internos da oficina (`ATENDENTE` e `GESTOR`).
 
 Exemplo de chamada protegida:
 
 ```bash
-curl --location "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com/api/ordens-servico/cliente/1" \
+curl --location "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com/api/ordens-servico/numero/OS-2026-00001" \
   --header "Authorization: Bearer <jwt-cliente>"
 ```
 
@@ -184,16 +186,15 @@ Requests da collection:
 | 1 | `Autenticar cliente por CPF e senha` | `200 OK`, `accessToken` preenchido e claim `tipo=CLIENTE` |
 | 2 | `Negar autenticacao sem senha` | `400 Bad Request` |
 | 3 | `Negar autenticacao com senha incorreta` | `401 Unauthorized` |
-| 4 | `Listar OS do proprio cliente com JWT` | `200 OK`, acesso permitido para o `clienteId` do token |
-| 5 | `Negar listagem sem token` | `401 Unauthorized` |
-| 6 | `Bloquear acesso a outro cliente` | `403 Forbidden` |
+| 4 | `Consultar propria OS por numero com JWT` | `200 OK`, acesso permitido quando CPF da OS corresponde ao `sub` do token |
+| 5 | `Negar consulta de OS por numero sem token` | `401 Unauthorized` |
+| 6 | `Bloquear consulta de OS de outro cliente por numero` | `403 Forbidden` |
 | 7 | `Bloquear abertura de OS por cliente externo` | `403 Forbidden` |
 
 A collection captura automaticamente:
 
 - `accessToken` retornado pela Lambda;
-- `clienteId` extraido do payload do JWT;
-- `clienteId` usado nas chamadas protegidas.
+- `numeroOrdemServico` usado nas chamadas protegidas.
 
 Fluxo de uso no Postman:
 
@@ -208,9 +209,9 @@ Evidencias aceitas para apresentacao:
 - print do `POST /auth/cpf` sem senha retornando `400`;
 - print do `POST /auth/cpf` com senha incorreta retornando `401`;
 - print do token decodificado contendo `tipo=CLIENTE`, `clienteId`, `sub`, `iss` e `aud`;
-- print da listagem do proprio cliente com `200 OK`;
+- print da consulta da propria OS por numero com `200 OK`;
 - print da mesma rota sem token com `401`;
-- print da tentativa de outro `clienteId` com `403`;
+- print da tentativa de consultar OS de outro CPF por numero com `403`;
 - print da tentativa de abertura de OS completa com token de cliente retornando `403`.
 
 ## Rotas Protegidas Por JWT Interno

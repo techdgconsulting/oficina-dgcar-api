@@ -36,6 +36,7 @@ import br.com.oficina.application.port.in.ListarOrdensServicoPorStatusInputPort;
 import br.com.oficina.application.port.in.RegistrarPagamentoInputPort;
 import br.com.oficina.application.port.in.RejeitarOrcamentoInputPort;
 import br.com.oficina.domain.valueobject.StatusOS;
+import br.com.oficina.infrastructure.security.ClienteSecurity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
@@ -49,6 +50,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -85,6 +87,7 @@ public class OrdemDeServicoController {
     private final CalcularMetricasOSInputPort calcularMetricasOSInputPort;
     private final CalcularTempoMedioOSInputPort calcularTempoMedioOSInputPort;
     private final OrdemDeServicoWebMapper mapper;
+    private final ClienteSecurity clienteSecurity;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ATENDENTE','GESTOR')")
@@ -114,10 +117,14 @@ public class OrdemDeServicoController {
     }
 
     @GetMapping("/numero/{numero}")
-    @PreAuthorize("hasAnyRole('ATENDENTE','MECANICO','GESTOR')")
+    @PreAuthorize("hasAnyRole('CLIENTE','ATENDENTE','MECANICO','GESTOR')")
     @Operation(summary = "Buscar OS pelo numero")
     public ResponseEntity<OrdemServicoResponse> buscarPorNumero(@PathVariable String numero) {
-        return ResponseEntity.ok(mapper.toResponse(buscarOrdemServicoPorNumeroInputPort.execute(numero)));
+        var os = buscarOrdemServicoPorNumeroInputPort.execute(numero);
+        if (clienteSecurity.isClienteAutenticado() && !clienteSecurity.isDocumentoDoToken(os.clienteDocumento())) {
+            throw new AccessDeniedException("Cliente nao autorizado para consultar esta OS");
+        }
+        return ResponseEntity.ok(mapper.toResponse(os));
     }
 
     @GetMapping
