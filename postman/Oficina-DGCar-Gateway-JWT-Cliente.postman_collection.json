@@ -2,12 +2,12 @@
   "info": {
     "_postman_id": "0dbaec97-967b-4dd9-9737-0f64a0fa8fe0",
     "name": "Oficina DGCar - Gateway JWT Cliente",
-    "description": "Evidencia do fluxo CPF -> Lambda Auth -> JWT CLIENTE -> API Spring protegida pelo API Gateway.",
+    "description": "Evidencia do fluxo CPF + senha -> Lambda Auth -> JWT CLIENTE -> API Spring protegida pelo API Gateway.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "01 - Autenticar cliente por CPF",
+      "name": "01 - Autenticar cliente por CPF e senha",
       "event": [
         {
           "listen": "test",
@@ -31,7 +31,6 @@
               "const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, '=');",
               "const payload = JSON.parse(atob(padded));",
               "",
-              "pm.collectionVariables.set('clienteId', String(payload.clienteId));",
               "pm.collectionVariables.set('cpfClienteValido', payload.sub);",
               "",
               "pm.test('JWT externo possui claims de cliente', function () {",
@@ -40,6 +39,51 @@
               "  pm.expect(payload.clienteId).to.exist;",
               "  pm.expect(payload.iss).to.eql('oficina-dgcar-auth-lambda');",
               "  pm.expect(payload.aud).to.eql('oficina-dgcar-api');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\",\n  \"senha\": \"{{senhaClienteValida}}\"\n}"
+        },
+        "url": {
+          "raw": "{{gatewayBaseUrl}}/auth/cpf",
+          "host": [
+            "{{gatewayBaseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "cpf"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "02 - Negar autenticacao sem senha",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"retorna 400 Bad Request\", function () {",
+              "  pm.response.to.have.status(400);",
+              "});",
+              "",
+              "const body = pm.response.json();",
+              "pm.test(\"senha obrigatoria foi sinalizada\", function () {",
+              "  pm.expect(body.error).to.eql(\"SENHA_OBRIGATORIA\");",
               "});"
             ]
           }
@@ -71,19 +115,66 @@
       "response": []
     },
     {
-      "name": "02 - Listar OS do proprio cliente com JWT",
+      "name": "03 - Negar autenticacao com senha incorreta",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('retorna 200 OK', function () {",
+              "pm.test(\"retorna 401 Unauthorized\", function () {",
+              "  pm.response.to.have.status(401);",
+              "});",
+              "",
+              "const body = pm.response.json();",
+              "pm.test(\"credenciais invalidas foram sinalizadas\", function () {",
+              "  pm.expect(body.error).to.eql(\"CREDENCIAIS_INVALIDAS\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\",\n  \"senha\": \"SenhaErrada@123\"\n}"
+        },
+        "url": {
+          "raw": "{{gatewayBaseUrl}}/auth/cpf",
+          "host": [
+            "{{gatewayBaseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "cpf"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "04 - Consultar propria OS por numero com JWT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"retorna 200 OK\", function () {",
               "  pm.response.to.have.status(200);",
               "});",
               "",
-              "pm.test('resposta e uma lista', function () {",
-              "  pm.expect(pm.response.json()).to.be.an('array');",
+              "const body = pm.response.json();",
+              "pm.test(\"OS consultada pertence ao CPF autenticado\", function () {",
+              "  pm.expect(body.numero).to.eql(pm.collectionVariables.get(\"numeroOrdemServico\"));",
+              "  pm.expect(body.clienteDocumento.replace(/\\D/g, \"\")).to.eql(pm.collectionVariables.get(\"cpfClienteValido\"));",
               "});"
             ]
           }
@@ -103,22 +194,22 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/cliente/{{clienteId}}",
+          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
           "host": [
             "{{gatewayBaseUrl}}"
           ],
           "path": [
             "api",
             "ordens-servico",
-            "cliente",
-            "{{clienteId}}"
+            "numero",
+            "{{numeroOrdemServico}}"
           ]
         }
       },
       "response": []
     },
     {
-      "name": "03 - Negar listagem sem token",
+      "name": "05 - Negar consulta de OS por numero sem token",
       "event": [
         {
           "listen": "test",
@@ -136,22 +227,22 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/cliente/{{clienteId}}",
+          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
           "host": [
             "{{gatewayBaseUrl}}"
           ],
           "path": [
             "api",
             "ordens-servico",
-            "cliente",
-            "{{clienteId}}"
+            "numero",
+            "{{numeroOrdemServico}}"
           ]
         }
       },
       "response": []
     },
     {
-      "name": "04 - Bloquear acesso a outro cliente",
+      "name": "06 - Bloquear consulta de OS de outro cliente por numero",
       "event": [
         {
           "listen": "test",
@@ -179,22 +270,22 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/cliente/{{outroClienteId}}",
+          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{outraOrdemServicoNumero}}",
           "host": [
             "{{gatewayBaseUrl}}"
           ],
           "path": [
             "api",
             "ordens-servico",
-            "cliente",
-            "{{outroClienteId}}"
+            "numero",
+            "{{outraOrdemServicoNumero}}"
           ]
         }
       },
       "response": []
     },
     {
-      "name": "05 - Bloquear abertura de OS por cliente externo",
+      "name": "07 - Bloquear abertura de OS por cliente externo",
       "event": [
         {
           "listen": "test",
@@ -255,16 +346,20 @@
       "value": "52398614808"
     },
     {
+      "key": "senhaClienteValida",
+      "value": "Cliente@123"
+    },
+    {
       "key": "clienteToken",
       "value": ""
     },
     {
-      "key": "clienteId",
-      "value": ""
+      "key": "numeroOrdemServico",
+      "value": "OS-2026-00001"
     },
     {
-      "key": "outroClienteId",
-      "value": "3"
+      "key": "outraOrdemServicoNumero",
+      "value": "OS-2026-00003"
     }
   ]
 }

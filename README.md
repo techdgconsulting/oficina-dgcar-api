@@ -31,7 +31,16 @@ A validacao do JWT externo foi implementada tambem na aplicacao para defesa em p
 - `oficina-dgcar-auth-lambda`: emite JWT externo de cliente no fluxo `POST /auth/cpf`.
 - `oficina-dgcar-infra-db`: provisiona o RDS PostgreSQL consumido pela aplicacao.
 - `oficina-dgcar-infra-k8s`: provisiona EKS, ECR, API Gateway e integra o Gateway com a aplicacao.
+- `oficina-dgcar-docs`: centraliza documentacao arquitetural, RFCs, ADRs, diagramas, banco, observabilidade e evidencias.
 - `mvp-posfiap-oficina-mecanica`: permanece como repositorio historico da evolucao.
+
+## Documentacao Central
+
+A documentacao arquitetural completa do Tech Challenge 3 esta centralizada em:
+
+[oficina-dgcar-docs](https://github.com/techdgconsulting/oficina-dgcar-docs)
+
+Este repositorio mantem apenas a documentacao especifica da aplicacao principal, incluindo execucao, deploy, variaveis, rotas e validacoes da API.
 
 ## Arquitetura De Entrada
 
@@ -40,7 +49,7 @@ O API Gateway foi definido como entrada oficial da solucao.
 Fluxo de autenticacao externa:
 
 ```text
-Cliente -> API Gateway POST /auth/cpf -> Lambda Auth CPF -> RDS PostgreSQL -> JWT CLIENTE
+Cliente -> API Gateway POST /auth/cpf com CPF e senha -> Lambda Auth CPF -> RDS PostgreSQL -> JWT CLIENTE
 ```
 
 Fluxo de consulta protegida:
@@ -55,14 +64,15 @@ Endpoint de homologacao do API Gateway:
 https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com
 ```
 
-Rota publica de autenticacao por CPF:
+Rota publica de autenticacao por CPF e senha:
 
 ```http
 POST /auth/cpf
 Content-Type: application/json
 
 {
-  "cpf": "52398614808"
+  "cpf": "52398614808",
+  "senha": "Cliente@123"
 }
 ```
 
@@ -101,8 +111,10 @@ Validacoes implementadas na API:
 - `issuer` igual a `CLIENT_JWT_ISSUER`.
 - `audience` igual a `CLIENT_JWT_AUDIENCE`.
 - Claim `tipo=CLIENTE`.
-- Claim `clienteId` para restricao de acesso por cliente.
-- Claim `sub` com CPF para restricao na abertura completa de OS.
+- Claim `clienteId` como identificador interno rastreavel.
+- Claim `sub` com CPF normalizado do cliente autenticado, usado para restringir a consulta da propria OS.
+
+O login interno de funcionarios continua separado e usa `username + senha` na aplicacao Spring. O login externo de clientes usa `CPF + senha` na Lambda e emite apenas JWT com `tipo=CLIENTE`.
 
 ## Rotas Publicas
 
@@ -133,23 +145,25 @@ As rotas abaixo aceitam JWT externo `CLIENTE` emitido pela Lambda, alem dos perf
 
 | Metodo | Rota | Regra implementada |
 |---|---|---|
-| `GET` | `/api/ordens-servico/cliente/{clienteId}` | `CLIENTE` pode listar apenas ordens do proprio `clienteId` |
+| `GET` | `/api/ordens-servico/numero/{numero}` | `CLIENTE` pode consultar apenas OS vinculada ao CPF do proprio JWT |
+
+O endpoint `/api/ordens-servico/cliente/{clienteId}` permanece para uso interno/autorizado, mas nao e o fluxo recomendado para cliente externo porque `clienteId` e identificador interno. Para cliente externo, a consulta demonstravel usa o numero legivel da OS, por exemplo `OS-2026-00001`.
 
 Clientes externos nao abrem ordens de servico pela API. A criacao de OS permanece restrita a perfis internos da oficina (`ATENDENTE` e `GESTOR`).
 
 Exemplo de chamada protegida:
 
 ```bash
-curl --location "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com/api/ordens-servico/cliente/1" \
+curl --location "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com/api/ordens-servico/numero/OS-2026-00001" \
   --header "Authorization: Bearer <jwt-cliente>"
 ```
 
-## Evidencia Postman Do Fluxo CPF JWT API
+## Evidencia Postman Do Fluxo CPF Senha JWT API
 
 Foi criada a collection [`postman/Oficina-DGCar-Gateway-JWT-Cliente.postman_collection.json`](./postman/Oficina-DGCar-Gateway-JWT-Cliente.postman_collection.json) para demonstrar o fluxo completo em homologacao:
 
 ```text
-CPF valido -> API Gateway -> Lambda Auth CPF -> JWT CLIENTE -> API Gateway -> API Spring no EKS -> consulta protegida das proprias OS
+CPF e senha validos -> API Gateway -> Lambda Auth CPF -> JWT CLIENTE -> API Gateway -> API Spring no EKS -> consulta protegida das proprias OS
 ```
 
 A collection usa o endpoint oficial de homologacao:
@@ -164,38 +178,49 @@ CPF de massa usado como evidencia:
 52398614808
 ```
 
-Esse CPF pertence a massa carregada pelas migrations e foi corrigido pela migration `V15__corrigir_documentos_clientes_seed.sql`.
+Esse CPF pertence a massa carregada pelas migrations, foi corrigido pela migration `V15__corrigir_documentos_clientes_seed.sql` e recebeu hash de senha pela migration `V17__adicionar_senha_hash_clientes.sql`.
+
+Senha de homologacao usada apenas para evidencia:
+
+```text
+Cliente@123
+```
+
+A senha nao e armazenada em texto puro. A migration grava somente o hash bcrypt na coluna `clientes.senha_hash`.
 
 Requests da collection:
 
 | Ordem | Request | Resultado esperado |
 |---|---|---|
-| 1 | `Autenticar cliente por CPF` | `200 OK`, `accessToken` preenchido e claim `tipo=CLIENTE` |
-| 2 | `Listar OS do proprio cliente com JWT` | `200 OK`, acesso permitido para o `clienteId` do token |
-| 3 | `Negar listagem sem token` | `401 Unauthorized` |
-| 4 | `Bloquear acesso a outro cliente` | `403 Forbidden` |
-| 5 | `Bloquear abertura de OS por cliente externo` | `403 Forbidden` |
+| 1 | `Autenticar cliente por CPF e senha` | `200 OK`, `accessToken` preenchido e claim `tipo=CLIENTE` |
+| 2 | `Negar autenticacao sem senha` | `400 Bad Request` |
+| 3 | `Negar autenticacao com senha incorreta` | `401 Unauthorized` |
+| 4 | `Consultar propria OS por numero com JWT` | `200 OK`, acesso permitido quando CPF da OS corresponde ao `sub` do token |
+| 5 | `Negar consulta de OS por numero sem token` | `401 Unauthorized` |
+| 6 | `Bloquear consulta de OS de outro cliente por numero` | `403 Forbidden` |
+| 7 | `Bloquear abertura de OS por cliente externo` | `403 Forbidden` |
 
 A collection captura automaticamente:
 
 - `accessToken` retornado pela Lambda;
-- `clienteId` extraido do payload do JWT;
-- `clienteId` usado nas chamadas protegidas.
+- `numeroOrdemServico` usado nas chamadas protegidas.
 
 Fluxo de uso no Postman:
 
 1. Importar a collection.
-2. Executar o request `Autenticar cliente por CPF`.
+2. Executar o request `Autenticar cliente por CPF e senha`.
 3. Executar os requests de acesso permitido e negado.
 4. Executar `Bloquear abertura de OS por cliente externo` para evidenciar que cliente externo nao cria OS.
 
 Evidencias aceitas para apresentacao:
 
-- print do `POST /auth/cpf` com `200 OK`;
+- print do `POST /auth/cpf` com CPF e senha retornando `200 OK`;
+- print do `POST /auth/cpf` sem senha retornando `400`;
+- print do `POST /auth/cpf` com senha incorreta retornando `401`;
 - print do token decodificado contendo `tipo=CLIENTE`, `clienteId`, `sub`, `iss` e `aud`;
-- print da listagem do proprio cliente com `200 OK`;
+- print da consulta da propria OS por numero com `200 OK`;
 - print da mesma rota sem token com `401`;
-- print da tentativa de outro `clienteId` com `403`;
+- print da tentativa de consultar OS de outro CPF por numero com `403`;
 - print da tentativa de abertura de OS completa com token de cliente retornando `403`.
 
 ## Rotas Protegidas Por JWT Interno
@@ -412,6 +437,18 @@ kubectl get svc oficina-api -n oficina
 
 O deploy da API tambem executa as migrations Flyway na inicializacao da aplicacao. A Lambda Auth CPF depende dessas tabelas e dados para retornar JWT no endpoint `POST /auth/cpf`.
 
+### Modelo De Senha Do Cliente Externo
+
+A migration `V17__adicionar_senha_hash_clientes.sql` adiciona a coluna `clientes.senha_hash` para suportar autenticacao externa por CPF e senha na Lambda.
+
+Regras implementadas:
+
+- `senha_hash` armazena somente hash bcrypt.
+- A senha do cliente nao aparece em `ClienteRequest`.
+- A senha do cliente nao aparece em `ClienteResponse`.
+- A API nao autentica cliente externo diretamente; ela apenas valida o JWT externo emitido pela Lambda.
+- Clientes criados sem processo de definicao de senha nao autenticam na Lambda ate receberem hash valido.
+
 ## Validacoes Realizadas
 
 Foi executada a suite completa de testes:
@@ -437,13 +474,13 @@ Foram adicionadas validacoes automatizadas para:
 - Pull Requests foram mantidos como caminho obrigatorio de merge.
 - GitHub Environments `homolog` e `prod` foram configurados para aprovacao manual antes de deploy.
 
-## Status Da Implementacao
+## Entrega Da API
 
 Foi implementada a validacao do JWT externo de cliente na API Spring Boot.
 
 Foi documentada a classificacao das rotas publicas, rotas protegidas por JWT de cliente e rotas protegidas por JWT interno.
 
-O proximo passo operacional e publicar esta alteracao no GitHub por Pull Request, aprovar o merge e executar o deploy da aplicacao no EKS para conectar o API Gateway tambem as rotas da API principal.
+O fluxo externo de cliente consulta a OS por numero legivel e valida o CPF da OS contra o `sub` do JWT `CLIENTE`, sem expor `clienteId` como entrada do cliente.
 
 ## Origem Historica
 
