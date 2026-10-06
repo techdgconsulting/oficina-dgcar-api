@@ -20,6 +20,7 @@ public class Cliente {
     private String bairro;
     private String cidade;
     private String uf;
+    private String senhaHash;
 
     public Cliente(CpfCnpj documento, String nome, String telefone, String email) {
         if (documento == null) {
