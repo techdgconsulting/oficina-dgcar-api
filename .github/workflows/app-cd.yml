@@ -204,6 +204,8 @@ jobs:
           SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           CLIENT_JWT_SECRET: ${{ secrets.CLIENT_JWT_SECRET }}
+          OFICINA_EMAIL_ENABLED: ${{ vars.OFICINA_EMAIL_ENABLED || 'false' }}
+          OFICINA_EMAIL_MODE: ${{ vars.OFICINA_EMAIL_MODE || 'LOG' }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
@@ -227,6 +229,13 @@ jobs:
           if [ -z "$CLIENT_JWT_SECRET" ]; then
             echo "::error::CLIENT_JWT_SECRET secret is required."
             exit 1
+          fi
+
+          if [ "$OFICINA_EMAIL_ENABLED" = "true" ] && [ "$OFICINA_EMAIL_MODE" = "SMTP" ]; then
+            if [ -z "$SMTP_USERNAME" ] || [ -z "$SMTP_PASSWORD" ]; then
+              echo "::error::Mailtrap esta habilitado para SMTP. Cadastre SMTP_USERNAME e SMTP_PASSWORD no environment antes do deploy."
+              exit 1
+            fi
           fi
 
           kubectl create secret generic oficina-api-secret -n "$K8S_NAMESPACE" \
