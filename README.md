@@ -49,7 +49,7 @@ O API Gateway foi definido como entrada oficial da solucao.
 Fluxo de autenticacao externa:
 
 ```text
-Cliente -> API Gateway POST /auth/cpf com CPF e senha -> Lambda Auth CPF -> RDS PostgreSQL -> JWT CLIENTE
+Cliente -> API Gateway POST /auth/cpf com CPF e senha -> Lambda Auth CPF + Senha -> RDS PostgreSQL -> JWT CLIENTE
 ```
 
 Fluxo de consulta protegida:
@@ -163,7 +163,7 @@ curl --location "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com/api/orde
 Foi criada a collection [`postman/Oficina-DGCar-Gateway-JWT-Cliente.postman_collection.json`](./postman/Oficina-DGCar-Gateway-JWT-Cliente.postman_collection.json) para demonstrar o fluxo completo em homologacao:
 
 ```text
-CPF e senha validos -> API Gateway -> Lambda Auth CPF -> JWT CLIENTE -> API Gateway -> API Spring no EKS -> consulta protegida das proprias OS
+CPF e senha validos -> API Gateway -> Lambda Auth CPF + Senha -> JWT CLIENTE -> API Gateway -> API Spring no EKS -> consulta protegida das proprias OS
 ```
 
 A collection usa o endpoint oficial de homologacao:
@@ -329,7 +329,7 @@ Secrets obrigatorios no environment escolhido:
 | `SPRING_DATASOURCE_USERNAME` | Usuario do RDS PostgreSQL |
 | `SPRING_DATASOURCE_PASSWORD` | Senha do RDS PostgreSQL |
 | `JWT_SECRET` | Segredo do JWT interno |
-| `CLIENT_JWT_SECRET` | Mesmo segredo usado pela Lambda Auth CPF |
+| `CLIENT_JWT_SECRET` | Mesmo segredo usado pela Lambda Auth CPF + Senha |
 | `SMTP_USERNAME` | Usuario SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
 | `SMTP_PASSWORD` | Senha SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
 
@@ -435,7 +435,7 @@ kubectl logs -n oficina deployment/oficina-api
 kubectl get svc oficina-api -n oficina
 ```
 
-O deploy da API tambem executa as migrations Flyway na inicializacao da aplicacao. A Lambda Auth CPF depende dessas tabelas e dados para retornar JWT no endpoint `POST /auth/cpf`.
+O deploy da API tambem executa as migrations Flyway na inicializacao da aplicacao. A Lambda Auth CPF + Senha depende dessas tabelas e dados para retornar JWT no endpoint `POST /auth/cpf`.
 
 ### Modelo De Senha Do Cliente Externo
 
