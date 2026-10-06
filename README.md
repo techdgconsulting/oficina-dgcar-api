@@ -336,6 +336,8 @@ Secrets obrigatorios no environment escolhido:
 | `SMTP_USERNAME` | Usuario SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
 | `SMTP_PASSWORD` | Senha SMTP, pode ficar vazio em homolog quando e-mail esta em modo LOG |
 
+O `GH_AUTOMATION_TOKEN` fica configurado no mesmo environment usado pelo deploy da API. Esse token permite que o workflow grave `API_BACKEND_URL` no repo `oficina-dgcar-infra-k8s` depois que o Service `LoadBalancer` publica o endpoint HTTP da aplicacao.
+
 Variaveis obrigatorias no environment escolhido:
 
 | Nome | Origem |
