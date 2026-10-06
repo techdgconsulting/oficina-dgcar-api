@@ -160,7 +160,16 @@ curl --location "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com/api/orde
 
 ## Evidencia Postman Do Fluxo CPF Senha JWT API
 
-Foi criada a collection [`postman/Oficina-DGCar-Gateway-JWT-Cliente.postman_collection.json`](./postman/Oficina-DGCar-Gateway-JWT-Cliente.postman_collection.json) para demonstrar o fluxo completo em homologacao:
+Foi consolidada a collection [`postman/Oficina-DGCar-Tech-Challenge-Fase-3.postman_collection.json`](./postman/Oficina-DGCar-Tech-Challenge-Fase-3.postman_collection.json) para demonstrar os fluxos da Fase 3 em homologacao.
+
+Pastas da collection:
+
+| Pasta | Conteudo |
+|---|---|
+| `Gateway JWT Cliente` | Fluxo CPF + senha, JWT externo `CLIENTE` e chamadas protegidas pelo API Gateway |
+| `Fluxo Completo` | Fluxo operacional completo trazido da collection historica `TechChallengeFase2` |
+
+Fluxo demonstrado em `Gateway JWT Cliente`:
 
 ```text
 CPF e senha validos -> API Gateway -> Lambda Auth CPF + Senha -> JWT CLIENTE -> API Gateway -> API Spring no EKS -> consulta protegida das proprias OS
@@ -188,7 +197,7 @@ Cliente@123
 
 A senha nao e armazenada em texto puro. A migration grava somente o hash bcrypt na coluna `clientes.senha_hash`.
 
-Requests da collection:
+Requests da pasta `Gateway JWT Cliente`:
 
 | Ordem | Request | Resultado esperado |
 |---|---|---|
