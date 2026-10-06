@@ -22,6 +22,16 @@ public class ClienteSecurity {
         return clienteId.equals(details.clienteId());
     }
 
+    public boolean isClienteAutenticado() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return false;
+        }
+
+        return authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_CLIENTE".equals(authority.getAuthority()));
+    }
+
     public boolean isDocumentoDoToken(String documento) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || documento == null) {

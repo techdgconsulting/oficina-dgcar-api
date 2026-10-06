@@ -31,7 +31,6 @@
               "const padded = normalized.padEnd(normalized.length + (4 - normalized.length % 4) % 4, '=');",
               "const payload = JSON.parse(atob(padded));",
               "",
-              "pm.collectionVariables.set('clienteId', String(payload.clienteId));",
               "pm.collectionVariables.set('cpfClienteValido', payload.sub);",
               "",
               "pm.test('JWT externo possui claims de cliente', function () {",
@@ -161,19 +160,21 @@
       "response": []
     },
     {
-      "name": "04 - Listar OS do proprio cliente com JWT",
+      "name": "04 - Consultar propria OS por numero com JWT",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('retorna 200 OK', function () {",
+              "pm.test(\"retorna 200 OK\", function () {",
               "  pm.response.to.have.status(200);",
               "});",
               "",
-              "pm.test('resposta e uma lista', function () {",
-              "  pm.expect(pm.response.json()).to.be.an('array');",
+              "const body = pm.response.json();",
+              "pm.test(\"OS consultada pertence ao CPF autenticado\", function () {",
+              "  pm.expect(body.numero).to.eql(pm.collectionVariables.get(\"numeroOrdemServico\"));",
+              "  pm.expect(body.clienteDocumento.replace(/\\D/g, \"\")).to.eql(pm.collectionVariables.get(\"cpfClienteValido\"));",
               "});"
             ]
           }
@@ -193,22 +194,22 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/cliente/{{clienteId}}",
+          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
           "host": [
             "{{gatewayBaseUrl}}"
           ],
           "path": [
             "api",
             "ordens-servico",
-            "cliente",
-            "{{clienteId}}"
+            "numero",
+            "{{numeroOrdemServico}}"
           ]
         }
       },
       "response": []
     },
     {
-      "name": "05 - Negar listagem sem token",
+      "name": "05 - Negar consulta de OS por numero sem token",
       "event": [
         {
           "listen": "test",
@@ -226,22 +227,22 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/cliente/{{clienteId}}",
+          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
           "host": [
             "{{gatewayBaseUrl}}"
           ],
           "path": [
             "api",
             "ordens-servico",
-            "cliente",
-            "{{clienteId}}"
+            "numero",
+            "{{numeroOrdemServico}}"
           ]
         }
       },
       "response": []
     },
     {
-      "name": "06 - Bloquear acesso a outro cliente",
+      "name": "06 - Bloquear consulta de OS de outro cliente por numero",
       "event": [
         {
           "listen": "test",
@@ -269,15 +270,15 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/cliente/{{outroClienteId}}",
+          "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{outraOrdemServicoNumero}}",
           "host": [
             "{{gatewayBaseUrl}}"
           ],
           "path": [
             "api",
             "ordens-servico",
-            "cliente",
-            "{{outroClienteId}}"
+            "numero",
+            "{{outraOrdemServicoNumero}}"
           ]
         }
       },
@@ -353,12 +354,12 @@
       "value": ""
     },
     {
-      "key": "clienteId",
-      "value": ""
+      "key": "numeroOrdemServico",
+      "value": "OS-2026-00001"
     },
     {
-      "key": "outroClienteId",
-      "value": "3"
+      "key": "outraOrdemServicoNumero",
+      "value": "OS-2026-00003"
     }
   ]
 }

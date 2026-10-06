@@ -33,6 +33,7 @@ import br.com.oficina.application.query.OrdemServicoResult;
 import br.com.oficina.application.query.TempoMedioOSResult;
 import br.com.oficina.domain.valueobject.StatusOS;
 import br.com.oficina.application.port.out.TokenProviderPort;
+import br.com.oficina.infrastructure.security.ClienteSecurity;
 import br.com.oficina.infrastructure.security.SecurityConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.qameta.allure.Epic;
@@ -62,7 +63,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(OrdemDeServicoController.class)
-@Import({SecurityConfig.class, OrdemDeServicoWebMapper.class})
+@Import({SecurityConfig.class, OrdemDeServicoWebMapper.class, ClienteSecurity.class})
 @Epic("Ordem de Servico")
 @Feature("API REST Ordens de Servico")
 class OrdemDeServicoControllerTest {
@@ -97,6 +98,14 @@ class OrdemDeServicoControllerTest {
         return new OrdemServicoResult(
             1L, "OS-2026-00001", "RECEBIDA", LocalDateTime.now(), null,
             "Maria", "529.982.247-25", "ABC1D23", "Honda Civic",
+            List.of(), BigDecimal.ZERO, null, null
+        );
+    }
+
+    private OrdemServicoResult osRespOutroCliente() {
+        return new OrdemServicoResult(
+            2L, "OS-2026-00002", "RECEBIDA", LocalDateTime.now(), null,
+            "Joao", "318.567.420-08", "DEF2E34", "Toyota Corolla",
             List.of(), BigDecimal.ZERO, null, null
         );
     }
@@ -445,6 +454,28 @@ class OrdemDeServicoControllerTest {
         mockMvc.perform(get("/api/ordens-servico/numero/OS-2026-00001"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.numero").value("OS-2026-00001"));
+    }
+
+    @Test
+    @Story("Cliente consulta propria OS por numero legivel")
+    @WithMockUser(username = "52998224725", roles = "CLIENTE")
+    void clienteDeveConsultarPropriaOSPorNumero() throws Exception {
+        when(buscarOrdemServicoPorNumeroInputPort.execute("OS-2026-00001")).thenReturn(osResp());
+
+        mockMvc.perform(get("/api/ordens-servico/numero/OS-2026-00001"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.numero").value("OS-2026-00001"))
+            .andExpect(jsonPath("$.clienteDocumento").value("529.982.247-25"));
+    }
+
+    @Test
+    @Story("Cliente nao consulta OS de outro CPF por numero legivel")
+    @WithMockUser(username = "52998224725", roles = "CLIENTE")
+    void clienteNaoDeveConsultarOSDeOutroClientePorNumero() throws Exception {
+        when(buscarOrdemServicoPorNumeroInputPort.execute("OS-2026-00002")).thenReturn(osRespOutroCliente());
+
+        mockMvc.perform(get("/api/ordens-servico/numero/OS-2026-00002"))
+            .andExpect(status().isForbidden());
     }
 
     @Test
