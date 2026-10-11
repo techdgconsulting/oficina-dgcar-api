@@ -60,9 +60,9 @@
               "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\",\n  \"senha\": \"{{senhaClienteValida}}\"\n}"
             },
             "url": {
-              "raw": "{{gatewayBaseUrl}}/auth/cpf",
+              "raw": "{{baseUrl}}/auth/cpf",
               "host": [
-                "{{gatewayBaseUrl}}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "auth",
@@ -105,9 +105,9 @@
               "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\"\n}"
             },
             "url": {
-              "raw": "{{gatewayBaseUrl}}/auth/cpf",
+              "raw": "{{baseUrl}}/auth/cpf",
               "host": [
-                "{{gatewayBaseUrl}}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "auth",
@@ -150,9 +150,9 @@
               "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\",\n  \"senha\": \"SenhaErrada@123\"\n}"
             },
             "url": {
-              "raw": "{{gatewayBaseUrl}}/auth/cpf",
+              "raw": "{{baseUrl}}/auth/cpf",
               "host": [
-                "{{gatewayBaseUrl}}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "auth",
@@ -197,9 +197,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
+              "raw": "{{baseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
               "host": [
-                "{{gatewayBaseUrl}}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "api",
@@ -230,9 +230,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
+              "raw": "{{baseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
               "host": [
-                "{{gatewayBaseUrl}}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "api",
@@ -273,9 +273,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{gatewayBaseUrl}}/api/ordens-servico/numero/{{outraOrdemServicoNumero}}",
+              "raw": "{{baseUrl}}/api/ordens-servico/numero/{{outraOrdemServicoNumero}}",
               "host": [
-                "{{gatewayBaseUrl}}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "api",
@@ -325,9 +325,9 @@
               "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{cpfClienteValido}}\",\n    \"nome\": \"Cliente Evidencia Gateway\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"cliente.evidencia@dgcar.local\",\n    \"cep\": \"01310100\",\n    \"logradouro\": \"Av Paulista\",\n    \"bairro\": \"Bela Vista\",\n    \"cidade\": \"Sao Paulo\",\n    \"uf\": \"SP\"\n  },\n  \"veiculo\": {\n    \"placa\": \"TST1A99\",\n    \"marca\": \"Toyota\",\n    \"modelo\": \"Corolla Evidencia\",\n    \"ano\": 2024\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": 1,\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": []\n}"
             },
             "url": {
-              "raw": "{{gatewayBaseUrl}}/api/ordens-servico/completa",
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
               "host": [
-                "{{gatewayBaseUrl}}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "api",
@@ -933,7 +933,7 @@
           ]
         },
         {
-          "name": "13 - Consultar tracking publico pelo numero",
+          "name": "13 - Consultar tracking protegido pelo numero",
           "request": {
             "method": "GET",
             "header": [],
@@ -951,7 +951,14 @@
               ]
             },
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{email_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -959,7 +966,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('[EMAIL 13] Tracking publico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[EMAIL 13] Tracking protegido 200', () => pm.response.to.have.status(200));",
                   "pm.test('[EMAIL 13] Status final ENTREGUE', () => pm.expect(pm.response.json().status).to.eql('ENTREGUE'));",
                   "pm.test('[EMAIL 13] Numero da OS correto', () => pm.expect(pm.response.json().numero).to.eql(pm.collectionVariables.get('email_osNumero')));",
                   "console.log('[EMAIL E2E] Fluxo concluido. Confira no Mailtrap os e-mails para: ' + pm.collectionVariables.get('emailClienteNotificacao'));"
@@ -1031,10 +1038,6 @@
   ],
   "variable": [
     {
-      "key": "gatewayBaseUrl",
-      "value": "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com"
-    },
-    {
       "key": "cpfClienteValido",
       "value": "52398614808"
     },
@@ -1056,7 +1059,7 @@
     },
     {
       "key": "baseUrl",
-      "value": "http://a6cd97e4bf34346e4887022b2cc4d802-1644299429.us-east-1.elb.amazonaws.com"
+      "value": "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com"
     },
     {
       "key": "tokenGestor",

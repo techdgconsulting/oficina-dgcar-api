@@ -58,7 +58,7 @@ class ClienteControllerTest {
     @MockitoBean private UserDetailsService userDetailsService;
 
     private final ClienteResult resp = new ClienteResult(1L, "529.982.247-25", "CPF", "Joao", "11999", "j@e.com",
-            "01001-000", "Praca da Se", "Se", "Sao Paulo", "SP");
+            "01001-000", "Praca da Se", "Se", "Sao Paulo", "SP", "ATIVO");
 
     @Test
     @WithMockUser(roles = "GESTOR")

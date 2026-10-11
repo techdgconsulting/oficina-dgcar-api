@@ -479,14 +479,32 @@ class OrdemDeServicoControllerTest {
     }
 
     @Test
-    @Story("Consultar status por numero publico via API")
-    void deveConsultarStatusPorNumeroPublico() throws Exception {
+    @Story("Cliente consulta status da propria OS por numero legivel")
+    @WithMockUser(username = "52998224725", roles = "CLIENTE")
+    void clienteDeveConsultarStatusDaPropriaOSPorNumero() throws Exception {
         when(buscarOrdemServicoPorNumeroInputPort.execute("OS-2026-00001")).thenReturn(osResp());
         mockMvc.perform(get("/api/ordens-servico/numero/OS-2026-00001/status"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.numero").value("OS-2026-00001"))
             .andExpect(jsonPath("$.status").value("RECEBIDA"))
             .andExpect(jsonPath("$.mecanicoNome").isEmpty());
+    }
+
+    @Test
+    @Story("Status por numero exige autenticacao")
+    void statusPorNumeroSemTokenRetorna401() throws Exception {
+        mockMvc.perform(get("/api/ordens-servico/numero/OS-2026-00001/status"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @Story("Cliente nao consulta status de OS de outro CPF por numero legivel")
+    @WithMockUser(username = "52998224725", roles = "CLIENTE")
+    void clienteNaoDeveConsultarStatusDeOutroClientePorNumero() throws Exception {
+        when(buscarOrdemServicoPorNumeroInputPort.execute("OS-2026-00002")).thenReturn(osRespOutroCliente());
+
+        mockMvc.perform(get("/api/ordens-servico/numero/OS-2026-00002/status"))
+            .andExpect(status().isForbidden());
     }
 
     @Test

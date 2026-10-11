@@ -2,6 +2,8 @@
 
 Repositorio da aplicacao principal Spring Boot da Oficina Mecanica DGCar no Tech Challenge 3.
 
+Operacao ponta a ponta do ambiente academico: [oficina-dgcar-docs/docs/operacao/ambiente-academico.md](https://github.com/techdgconsulting/oficina-dgcar-docs/blob/main/docs/operacao/ambiente-academico.md).
+
 ## Proposito
 
 Este repositorio concentra a API principal da oficina, executada em Kubernetes e integrada ao banco PostgreSQL gerenciado.
@@ -128,7 +130,6 @@ As rotas publicas permanecem sem JWT da aplicacao:
 | `GET` | `/api-docs/**` | OpenAPI |
 | `GET` | `/actuator/health/**` | Healthcheck |
 | `GET` | `/actuator/info` | Informacoes basicas |
-| `GET` | `/api/ordens-servico/status/{numero}` | Consulta publica de status por numero |
 | `GET` | `/api/ordens-servico/orcamento/decisao/{token}` | Consulta de decisao por token opaco |
 | `POST` | `/api/ordens-servico/orcamento/decisao/{token}/aprovar` | Aprovacao por token opaco |
 | `POST` | `/api/ordens-servico/orcamento/decisao/{token}/recusar` | Recusa por token opaco |
@@ -146,6 +147,7 @@ As rotas abaixo aceitam JWT externo `CLIENTE` emitido pela Lambda, alem dos perf
 | Metodo | Rota | Regra implementada |
 |---|---|---|
 | `GET` | `/api/ordens-servico/numero/{numero}` | `CLIENTE` pode consultar apenas OS vinculada ao CPF do proprio JWT |
+| `GET` | `/api/ordens-servico/numero/{numero}/status` | `CLIENTE` pode consultar apenas status de OS vinculada ao CPF do proprio JWT |
 
 O endpoint `/api/ordens-servico/cliente/{clienteId}` permanece para uso interno/autorizado, mas nao e o fluxo recomendado para cliente externo porque `clienteId` e identificador interno. Para cliente externo, a consulta demonstravel usa o numero legivel da OS, por exemplo `OS-2026-00001`.
 
@@ -355,8 +357,11 @@ Variaveis obrigatorias no environment escolhido:
 | `ECR_REPOSITORY` | Nome ou URL do repositorio ECR da aplicacao |
 | `EKS_CLUSTER_NAME` | Nome do cluster EKS |
 | `SPRING_DATASOURCE_URL` | Output `spring_datasource_url` do repo `oficina-dgcar-infra-db` |
+| `OFICINA_PUBLIC_BASE_URL` | Endpoint publico do API Gateway usado em links de e-mail |
 
 O workflow tambem aceita `AWS_REGION`, `ECR_REPOSITORY`, `EKS_CLUSTER_NAME` e `SPRING_DATASOURCE_URL` como Secrets. Quando os dois existem, o valor em Secret tem prioridade.
+
+`OFICINA_PUBLIC_BASE_URL` deve apontar para o API Gateway, sem barra final, por exemplo `https://xxxx.execute-api.us-east-1.amazonaws.com`. Em `homolog` e `prod`, o workflow falha se essa variavel estiver vazia ou apontar para `localhost`, porque ela compoe os links enviados nos e-mails de status e decisao de orcamento.
 
 Ao final do deploy, o workflow consulta o Service `oficina-api`, monta a URL HTTP do LoadBalancer e grava automaticamente o secret `API_BACKEND_URL` no environment `homolog` ou `prod` do repo `oficina-dgcar-infra-k8s`. Com isso, o passo seguinte do `infra-k8s` cria a rota proxy `ANY /{proxy+}` do API Gateway sem cadastro manual desse endpoint.
 

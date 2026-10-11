@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
                 version = "1.0.0",
                 description = "API REST para gestao de oficina mecanica: clientes, veiculos, pecas, servicos e ordens de servico. " +
                         "Autenticacao via JWT Bearer Token. Fluxo da OS: RECEBIDA -> EM_DIAGNOSTICO -> AGUARDANDO_APROVACAO -> EM_EXECUCAO -> FINALIZADA -> AGUARDANDO_RETIRADA -> ENTREGUE. " +
-                        "Endpoint publico (sem token): GET /api/ordens-servico/numero/{numero}/status - permite ao cliente rastrear o status da OS pelo numero impresso no comprovante.",
+                        "Consulta de OS/status por numero exige JWT. Clientes externos podem consultar apenas ordens vinculadas ao CPF do proprio token.",
                 contact = @Contact(name = "Tech Challenge FIAP - Grupo DGCAR")
         ),
         servers = {

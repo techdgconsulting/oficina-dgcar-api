@@ -160,7 +160,7 @@ jobs:
       - name: Create or update Kubernetes config
         env:
           SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL || vars.SPRING_DATASOURCE_URL }}
-          OFICINA_PUBLIC_BASE_URL: ${{ vars.OFICINA_PUBLIC_BASE_URL || 'http://localhost:8080' }}
+          OFICINA_PUBLIC_BASE_URL: ${{ vars.OFICINA_PUBLIC_BASE_URL || '' }}
           OFICINA_EMAIL_ENABLED: ${{ vars.OFICINA_EMAIL_ENABLED || 'false' }}
           OFICINA_EMAIL_MODE: ${{ vars.OFICINA_EMAIL_MODE || 'LOG' }}
           OFICINA_EMAIL_REMETENTE: ${{ vars.OFICINA_EMAIL_REMETENTE || 'no-reply@dgcar.local' }}
@@ -178,6 +178,16 @@ jobs:
 
           if [ -z "$SPRING_DATASOURCE_URL" ]; then
             echo "::error::SPRING_DATASOURCE_URL secret is required."
+            exit 1
+          fi
+
+          if [ -z "$OFICINA_PUBLIC_BASE_URL" ]; then
+            echo "::error::OFICINA_PUBLIC_BASE_URL variable is required and must point to the API Gateway endpoint."
+            exit 1
+          fi
+
+          if printf '%s' "$OFICINA_PUBLIC_BASE_URL" | grep -Eq '^https?://(localhost|127\.0\.0\.1)(:|/|$)'; then
+            echo "::error::OFICINA_PUBLIC_BASE_URL must not point to localhost in deployed environments."
             exit 1
           fi
 

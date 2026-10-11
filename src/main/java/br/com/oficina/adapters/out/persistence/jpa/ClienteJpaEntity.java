@@ -42,4 +42,7 @@ public class ClienteJpaEntity {
 
     @Column(name = "senha_hash")
     private String senhaHash;
+
+    @Column(name = "status_cliente", nullable = false, length = 20)
+    private String statusCliente;
 }

@@ -133,9 +133,10 @@ Authorization: Bearer {{tokenAtendente}}
 
 ###
 
-### [F1.5] Consultar status da OS — rastreamento público (sem token)
+### [F1.5] Consultar status da OS — rastreamento protegido por JWT
 # → Ajuste o número da OS (formato OS-AAAA-NNNNN)
 GET {{baseUrl}}/api/ordens-servico/numero/OS-2026-00024/status
+Authorization: Bearer {{tokenGestor}}
 
 ###
 
@@ -542,9 +543,10 @@ Authorization: Bearer {{tokenGestor}}
 GET {{baseUrl}}/api/ordens-servico/1/status
 Authorization: Bearer {{tokenGestor}}
 
-### Rastreamento público — consultar status pelo número da OS (sem token)
-# → Endpoint indicado para clientes verificarem o andamento via número da OS.
+### Rastreamento protegido — consultar status pelo número da OS
+# → Clientes usam JWT externo e só acessam OS vinculada ao CPF do token.
 GET {{baseUrl}}/api/ordens-servico/numero/OS-2026-00001/status
+Authorization: Bearer {{tokenGestor}}
 
 ###
 

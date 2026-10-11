@@ -21,6 +21,8 @@ public class Cliente {
     private String cidade;
     private String uf;
     private String senhaHash;
+    @Builder.Default
+    private String statusCliente = "ATIVO";
 
     public Cliente(CpfCnpj documento, String nome, String telefone, String email) {
         if (documento == null) {
