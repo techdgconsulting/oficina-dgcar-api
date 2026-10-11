@@ -66,7 +66,7 @@ jobs:
     name: Build Docker image
     runs-on: ubuntu-latest
     needs: build-test
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout repository
@@ -79,8 +79,8 @@ jobs:
     name: Build image, push to ECR and deploy on EKS
     runs-on: ubuntu-latest
     needs: build-test
-    if: github.event_name == 'workflow_dispatch'
-    environment: ${{ inputs.environment }}
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || 'homolog') }}
 
     steps:
       - name: Checkout repository
@@ -386,7 +386,7 @@ jobs:
       - name: Publish backend URL to infrastructure repository
         env:
           GH_TOKEN: ${{ secrets.GH_AUTOMATION_TOKEN }}
-          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          TARGET_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || 'homolog') }}
           INFRA_K8S_REPO: techdgconsulting/oficina-dgcar-infra-k8s
         run: |
           set -euo pipefail

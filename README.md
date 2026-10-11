@@ -2,7 +2,7 @@
 
 Repositorio da aplicacao principal Spring Boot da Oficina Mecanica DGCar no Tech Challenge 3.
 
-Operacao ponta a ponta do ambiente academico: [oficina-dgcar-docs/docs/operacao/ambiente-academico.md](https://github.com/techdgconsulting/oficina-dgcar-docs/blob/main/docs/operacao/ambiente-academico.md).
+Operacao ponta a ponta do ambiente academico: [oficina-dgcar-infra-k8s/docs/OPERACAO-AMBIENTE.md](https://github.com/techdgconsulting/oficina-dgcar-infra-k8s/blob/main/docs/OPERACAO-AMBIENTE.md).
 
 ## Proposito
 
@@ -301,11 +301,13 @@ Executar testes:
 mvn test
 ```
 
-## Deploy Manual Em Kubernetes
+## Deploy Automatico Em Kubernetes
 
-Foi implementado deploy manual no workflow `App CI/CD - Build, Test and Deploy`.
+O workflow `App CI/CD - Build, Test and Deploy` executa deploy automatico por branch protegida:
 
-O botao `Run workflow` fica disponivel no GitHub Actions apos o merge da alteracao que adiciona `workflow_dispatch`.
+- merge em `homolog` dispara deploy no environment `homolog`;
+- merge em `main` dispara deploy no environment `prod`;
+- `workflow_dispatch` permanece disponivel apenas para reexecucao operacional controlada.
 
 Fluxo executado pelo workflow:
 
@@ -319,19 +321,21 @@ Fluxo executado pelo workflow:
 8. Publica `API_BACKEND_URL` no environment correspondente do repo `oficina-dgcar-infra-k8s`.
 9. Exibe pods, service, HPA e URL do LoadBalancer.
 
-Execucao pelo GitHub:
+Execucao automatica:
+
+```text
+feature/* -> PR -> homolog -> deploy automatico homolog
+homolog -> PR -> main -> deploy automatico prod
+```
+
+Execucao manual de reprocessamento:
 
 ```text
 Actions -> App CI/CD - Build, Test and Deploy -> Run workflow
+environment=homolog ou prod
 ```
 
-Inputs:
-
-| Campo | Valor |
-|---|---|
-| `environment` | `homolog` ou `prod` |
-
-O deploy real foi mantido apenas via execucao manual e usa GitHub Environments. Assim, `homolog` e `prod` continuam exigindo aprovacao antes da execucao do job de deploy.
+Os deploys usam GitHub Environments. Assim, `homolog` e `prod` podem exigir aprovacao antes da execucao do job de deploy, mantendo a promocao controlada mesmo com gatilho automatico por branch.
 
 Secrets obrigatorios no environment escolhido:
 
@@ -509,10 +513,10 @@ Foram adicionadas validacoes automatizadas para:
 
 ## Branches E Ambientes
 
-- `main`: producao, protegida e sem commits diretos.
-- `homolog`: homologacao.
-- Pull Requests foram mantidos como caminho obrigatorio de merge.
-- GitHub Environments `homolog` e `prod` foram configurados para aprovacao manual antes de deploy.
+- `homolog`: branch de homologacao, protegida contra commits diretos; recebe PRs de `feature/*` e dispara deploy automatico no environment `homolog`.
+- `main`: branch de producao, protegida contra commits diretos; recebe PRs vindos de `homolog` e dispara deploy automatico no environment `prod`.
+- Pull Requests sao o caminho obrigatorio de merge.
+- GitHub Environments `homolog` e `prod` concentram secrets, variables e aprovacoes antes do deploy.
 
 ## Entrega Da API
 
