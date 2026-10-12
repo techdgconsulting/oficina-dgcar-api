@@ -1059,7 +1059,7 @@
     },
     {
       "key": "baseUrl",
-      "value": "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com"
+      "value": "https://<api-gateway-id>.execute-api.<region>.amazonaws.com"
     },
     {
       "key": "tokenGestor",
