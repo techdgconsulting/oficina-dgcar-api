@@ -291,7 +291,11 @@ Variaveis obrigatorias para execucao em nuvem:
 | `CLIENT_JWT_SECRET` | Segredo do JWT externo de clientes, igual ao usado pela Lambda |
 | `CLIENT_JWT_ISSUER` | Issuer esperado para JWT externo, padrao `oficina-dgcar-auth-lambda` |
 | `CLIENT_JWT_AUDIENCE` | Audience esperada para JWT externo, padrao `oficina-dgcar-api` |
+| `JAVA_TOOL_OPTIONS` | Opcoes da JVM; em nuvem carrega o New Relic Java Agent com `-javaagent:/app/newrelic/newrelic.jar` |
 | `NEW_RELIC_LICENSE_KEY` | Chave do New Relic quando observabilidade estiver habilitada |
+| `NEW_RELIC_APP_NAME` | Nome da aplicacao APM no New Relic |
+| `NEW_RELIC_ENVIRONMENT` | Ambiente reportado ao New Relic, por exemplo `homolog` ou `prod` |
+| `NEW_RELIC_LOG_FILE_NAME` | Destino dos logs do agent; padrao `STDOUT` em Kubernetes |
 | `SMTP_USERNAME` | Usuario SMTP quando envio real estiver habilitado |
 | `SMTP_PASSWORD` | Senha SMTP quando envio real estiver habilitado |
 
@@ -376,6 +380,7 @@ Secrets obrigatorios no environment escolhido:
 | `GH_AUTOMATION_TOKEN` | Token GitHub com permissao para gravar secrets no repo `oficina-dgcar-infra-k8s` |
 | `SMTP_USERNAME` | Usuario SMTP do Mailtrap quando e-mail esta em modo `SMTP` |
 | `SMTP_PASSWORD` | Senha SMTP do Mailtrap quando e-mail esta em modo `SMTP` |
+| `NEW_RELIC_LICENSE_KEY` | License key da conta New Relic para enviar telemetria APM |
 
 O `GH_AUTOMATION_TOKEN` fica configurado no mesmo environment usado pelo deploy da API. Esse token permite que o workflow grave `API_BACKEND_URL` no repo `oficina-dgcar-infra-k8s` depois que o Service `LoadBalancer` publica o endpoint HTTP da aplicacao.
 
@@ -388,10 +393,16 @@ Variaveis obrigatorias no environment escolhido:
 | `EKS_CLUSTER_NAME` | Nome do cluster EKS |
 | `SPRING_DATASOURCE_URL` | Output `spring_datasource_url` do repo `oficina-dgcar-infra-db` |
 | `OFICINA_PUBLIC_BASE_URL` | Endpoint publico do API Gateway usado em links de e-mail |
+| `NEW_RELIC_APP_NAME` | Opcional; padrao `oficina-dgcar-api-homolog` ou `oficina-dgcar-api-prod` |
+| `NEW_RELIC_ENVIRONMENT` | Opcional; padrao igual ao environment do deploy |
+| `NEW_RELIC_LOG_FILE_NAME` | Opcional; padrao `STDOUT` |
+| `JAVA_TOOL_OPTIONS` | Opcional; padrao `-javaagent:/app/newrelic/newrelic.jar` |
 
 O workflow tambem aceita `AWS_REGION`, `ECR_REPOSITORY`, `EKS_CLUSTER_NAME` e `SPRING_DATASOURCE_URL` como Secrets. Quando os dois existem, o valor em Secret tem prioridade.
 
 `OFICINA_PUBLIC_BASE_URL` deve apontar para o API Gateway, sem barra final, no formato `https://<api-gateway-id>.execute-api.<region>.amazonaws.com`. Em `homolog` e `prod`, o workflow falha se essa variavel estiver vazia ou apontar para `localhost`, porque ela compoe os links enviados nos e-mails de status e decisao de orcamento.
+
+Para ativar APM real no New Relic, crie uma conta New Relic, gere uma License key e cadastre `NEW_RELIC_LICENSE_KEY` como secret nos environments `homolog` e `prod` deste repositorio. O Dockerfile ja inclui o New Relic Java Agent em `/app/newrelic/newrelic.jar`, e o workflow injeta `JAVA_TOOL_OPTIONS`, `NEW_RELIC_APP_NAME` e `NEW_RELIC_ENVIRONMENT` no ConfigMap do Kubernetes.
 
 Ao final do deploy, o workflow consulta o Service `oficina-api`, monta a URL HTTP do LoadBalancer e grava automaticamente o secret `API_BACKEND_URL` no environment `homolog` ou `prod` do repo `oficina-dgcar-infra-k8s`. Com isso, o passo seguinte do `infra-k8s` cria a rota proxy `ANY /{proxy+}` do API Gateway sem cadastro manual desse endpoint.
 

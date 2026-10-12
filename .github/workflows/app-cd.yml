@@ -159,6 +159,7 @@ jobs:
 
       - name: Create or update Kubernetes config
         env:
+          TARGET_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || 'homolog') }}
           SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL || vars.SPRING_DATASOURCE_URL }}
           OFICINA_PUBLIC_BASE_URL: ${{ vars.OFICINA_PUBLIC_BASE_URL || '' }}
           OFICINA_EMAIL_ENABLED: ${{ vars.OFICINA_EMAIL_ENABLED || 'false' }}
@@ -173,6 +174,10 @@ jobs:
           PAGAMENTO_GATEWAY_LATENCY_MS: ${{ vars.PAGAMENTO_GATEWAY_LATENCY_MS || '0' }}
           CLIENT_JWT_ISSUER: ${{ vars.CLIENT_JWT_ISSUER || 'oficina-dgcar-auth-lambda' }}
           CLIENT_JWT_AUDIENCE: ${{ vars.CLIENT_JWT_AUDIENCE || 'oficina-dgcar-api' }}
+          JAVA_TOOL_OPTIONS: ${{ vars.JAVA_TOOL_OPTIONS || '-javaagent:/app/newrelic/newrelic.jar' }}
+          NEW_RELIC_APP_NAME: ${{ vars.NEW_RELIC_APP_NAME || '' }}
+          NEW_RELIC_ENVIRONMENT: ${{ vars.NEW_RELIC_ENVIRONMENT || '' }}
+          NEW_RELIC_LOG_FILE_NAME: ${{ vars.NEW_RELIC_LOG_FILE_NAME || 'STDOUT' }}
         run: |
           set -euo pipefail
 
@@ -191,6 +196,9 @@ jobs:
             exit 1
           fi
 
+          NEW_RELIC_APP_NAME="${NEW_RELIC_APP_NAME:-oficina-dgcar-api-$TARGET_ENVIRONMENT}"
+          NEW_RELIC_ENVIRONMENT="${NEW_RELIC_ENVIRONMENT:-$TARGET_ENVIRONMENT}"
+
           kubectl create configmap oficina-api-config -n "$K8S_NAMESPACE" \
             --from-literal=SPRING_DATASOURCE_URL="$SPRING_DATASOURCE_URL" \
             --from-literal=OFICINA_PUBLIC_BASE_URL="$OFICINA_PUBLIC_BASE_URL" \
@@ -206,6 +214,10 @@ jobs:
             --from-literal=PAGAMENTO_GATEWAY_LATENCY_MS="$PAGAMENTO_GATEWAY_LATENCY_MS" \
             --from-literal=CLIENT_JWT_ISSUER="$CLIENT_JWT_ISSUER" \
             --from-literal=CLIENT_JWT_AUDIENCE="$CLIENT_JWT_AUDIENCE" \
+            --from-literal=JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS" \
+            --from-literal=NEW_RELIC_APP_NAME="$NEW_RELIC_APP_NAME" \
+            --from-literal=NEW_RELIC_ENVIRONMENT="$NEW_RELIC_ENVIRONMENT" \
+            --from-literal=NEW_RELIC_LOG_FILE_NAME="$NEW_RELIC_LOG_FILE_NAME" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Create or update Kubernetes secret
@@ -218,6 +230,7 @@ jobs:
           OFICINA_EMAIL_MODE: ${{ vars.OFICINA_EMAIL_MODE || 'LOG' }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
         run: |
           set -euo pipefail
 
@@ -255,6 +268,7 @@ jobs:
             --from-literal=CLIENT_JWT_SECRET="$CLIENT_JWT_SECRET" \
             --from-literal=SMTP_USERNAME="$SMTP_USERNAME" \
             --from-literal=SMTP_PASSWORD="$SMTP_PASSWORD" \
+            --from-literal=NEW_RELIC_LICENSE_KEY="$NEW_RELIC_LICENSE_KEY" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Apply Kubernetes workload
