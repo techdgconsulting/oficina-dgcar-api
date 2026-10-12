@@ -32,6 +32,7 @@ public class Cliente {
         this.nome = nome;
         this.telefone = telefone;
         this.email = email;
+        this.statusCliente = "ATIVO";
     }
 
     public void atualizar(String nome, String telefone, String email) {
