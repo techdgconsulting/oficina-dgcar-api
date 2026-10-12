@@ -15,6 +15,7 @@ import br.com.oficina.application.port.out.EmailNotificacaoPort;
 import br.com.oficina.application.port.out.OrcamentoDecisaoClienteRepositoryPort;
 import br.com.oficina.application.port.out.OrcamentoRepositoryPort;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.TokenSeguroPort;
 import br.com.oficina.application.usecase.AprovarOrcamentoDiretoUseCase;
 import br.com.oficina.application.usecase.BuscarOrcamentoAtivoPorOrdemServicoUseCase;
@@ -88,6 +89,7 @@ public class OrcamentoUseCaseConfig {
             TokenSeguroPort tokenSeguroPort,
             AprovarOrcamentoInputPort aprovarOrcamentoInputPort,
             RejeitarOrcamentoInputPort rejeitarOrcamentoInputPort,
+            OrdemServicoMetricsPort metricsPort,
             @Value("${oficina.notificacao.base-url:http://localhost:8080}") String baseUrl,
             @Value("${oficina.notificacao.orcamento.expiracao-horas:48}") long expiracaoHoras) {
         return new OrcamentoDecisaoClienteUseCase(
@@ -100,7 +102,8 @@ public class OrcamentoUseCaseConfig {
                 aprovarOrcamentoInputPort,
                 rejeitarOrcamentoInputPort,
                 baseUrl,
-                expiracaoHoras);
+                expiracaoHoras,
+                metricsPort);
     }
 
 }

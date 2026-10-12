@@ -15,6 +15,7 @@ import br.com.oficina.application.port.out.EntregaRepositoryPort;
 import br.com.oficina.application.port.out.ExecucaoRepositoryPort;
 import br.com.oficina.application.port.out.OrcamentoRepositoryPort;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.PagamentoGatewayPort;
 import br.com.oficina.application.port.out.PagamentoRepositoryPort;
 import br.com.oficina.application.port.out.PecaRepositoryPort;
@@ -97,7 +98,8 @@ class OrdemDeServicoUseCaseTest {
                 entregaRepository,
                 encerramentoRepository,
                 pagamentoGateway,
-                notificarStatusOrdemServicoInputPort);
+                notificarStatusOrdemServicoInputPort,
+                OrdemServicoMetricsPort.NOOP);
 
         cliente = Cliente.builder()
                 .id(1L)

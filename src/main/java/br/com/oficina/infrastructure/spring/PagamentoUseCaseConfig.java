@@ -7,6 +7,7 @@ import br.com.oficina.application.port.in.ConsultarStatusPagamentoInputPort;
 import br.com.oficina.application.port.in.CriarPagamentoInputPort;
 import br.com.oficina.application.port.in.ProcessarPagamentoInputPort;
 import br.com.oficina.application.port.in.RecusarPagamentoInputPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.PagamentoGatewayPort;
 import br.com.oficina.application.port.out.PagamentoRepositoryPort;
 import br.com.oficina.application.usecase.AprovarPagamentoUseCase;
@@ -41,8 +42,9 @@ public class PagamentoUseCaseConfig {
     @Bean
     ProcessarPagamentoInputPort processarPagamentoInputPort(
             PagamentoRepositoryPort pagamentoRepositoryPort,
-            PagamentoGatewayPort pagamentoGatewayPort) {
-        return new ProcessarPagamentoUseCase(pagamentoRepositoryPort, pagamentoGatewayPort);
+            PagamentoGatewayPort pagamentoGatewayPort,
+            OrdemServicoMetricsPort metricsPort) {
+        return new ProcessarPagamentoUseCase(pagamentoRepositoryPort, pagamentoGatewayPort, metricsPort);
     }
 
     @Bean
