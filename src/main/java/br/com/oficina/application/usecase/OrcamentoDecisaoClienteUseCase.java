@@ -23,7 +23,9 @@ import br.com.oficina.domain.model.OrcamentoDecisaoCliente;
 import br.com.oficina.domain.valueobject.StatusDecisaoCliente;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RequiredArgsConstructor
 public class OrcamentoDecisaoClienteUseCase implements
         EnviarNotificacaoOrcamentoInputPort,
@@ -73,11 +75,16 @@ public class OrcamentoDecisaoClienteUseCase implements
 
         var linkAprovacao = montarLink(token, "aprovar");
         var linkRecusa = montarLink(token, "recusar");
-        emailNotificacaoPort.enviar(new EmailNotificacaoPort.EmailNotificacao(
-                cliente.getEmail(),
-                "Orcamento da OS " + os.getNumero() + " disponivel para aprovacao",
-                montarCorpoEmail(cliente.getNome(), os.getNumero(), orcamento.getValorTotal().toString(),
-                        dataExpiracao, linkAprovacao, linkRecusa)));
+        try {
+            emailNotificacaoPort.enviar(new EmailNotificacaoPort.EmailNotificacao(
+                    cliente.getEmail(),
+                    "Orcamento da OS " + os.getNumero() + " disponivel para aprovacao",
+                    montarCorpoEmail(cliente.getNome(), os.getNumero(), orcamento.getValorTotal().toString(),
+                            dataExpiracao, linkAprovacao, linkRecusa)));
+        } catch (Exception ex) {
+            log.warn("NOTIFICACAO_ORCAMENTO_FALHOU osId={} numero={} orcamentoId={} email={} erro={}",
+                    os.getId(), os.getNumero(), orcamento.getId(), cliente.getEmail(), ex.getMessage());
+        }
 
         return new NotificacaoOrcamentoResult(
                 orcamento.getId(),
