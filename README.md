@@ -2,7 +2,7 @@
 
 Repositorio da aplicacao principal Spring Boot da Oficina Mecanica DGCar no Tech Challenge 3.
 
-Operacao ponta a ponta do ambiente academico: [oficina-dgcar-infra-k8s/docs/OPERACAO-AMBIENTE.md](https://github.com/techdgconsulting/oficina-dgcar-infra-k8s/blob/main/docs/OPERACAO-AMBIENTE.md).
+Operacao ponta a ponta do ambiente academico: [oficina-dgcar-infra-k8s/README.md](https://github.com/techdgconsulting/oficina-dgcar-infra-k8s/blob/homolog/README.md).
 
 ## Proposito
 
@@ -48,6 +48,23 @@ Este repositorio mantem apenas a documentacao especifica da aplicacao principal,
 
 O API Gateway foi definido como entrada oficial da solucao.
 
+## Diagrama Da Arquitetura Do Repositorio
+
+```mermaid
+flowchart LR
+  usuario[Usuarios externos e internos] --> gateway[API Gateway]
+  gateway --> api[oficina-dgcar-api<br/>Spring Boot no EKS]
+  api --> security[Spring Security<br/>JWT interno e JWT CLIENTE]
+  api --> rds[(RDS PostgreSQL)]
+  api --> smtp[SMTP Mailtrap]
+  api --> logs[Logs e metricas]
+
+  lambda[oficina-dgcar-auth-lambda] --> rds
+  gateway --> lambda
+```
+
+Este repositorio e responsavel pela aplicacao Spring Boot, validacao dos tokens, regras de negocio, migrations Flyway, notificacoes e exposicao do contrato OpenAPI. O provisionamento de EKS, Gateway, RDS e Lambda fica nos repositorios de infraestrutura.
+
 Fluxo de autenticacao externa:
 
 ```text
@@ -60,11 +77,13 @@ Fluxo de consulta protegida:
 Cliente -> API Gateway -> API Spring Boot no EKS -> Validacao JWT CLIENTE -> Consulta somente das proprias OS
 ```
 
-Endpoint de homologacao do API Gateway:
+Endpoint do API Gateway:
 
 ```text
-https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com
+${OFICINA_PUBLIC_BASE_URL}
 ```
+
+O valor de `OFICINA_PUBLIC_BASE_URL` e publicado pelo workflow de provisionamento do `oficina-dgcar-infra-k8s` apos a criacao do API Gateway. Como o endpoint pode mudar depois de destroy/provisionamento, a documentacao nao deve fixar um ID especifico de Gateway.
 
 Rota publica de autenticacao por CPF e senha:
 
@@ -156,13 +175,20 @@ Clientes externos nao abrem ordens de servico pela API. A criacao de OS permanec
 Exemplo de chamada protegida:
 
 ```bash
-curl --location "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com/api/ordens-servico/numero/OS-2026-00001" \
+curl --location "${OFICINA_PUBLIC_BASE_URL}/api/ordens-servico/numero/OS-2026-00001" \
   --header "Authorization: Bearer <jwt-cliente>"
 ```
 
 ## Evidencia Postman Do Fluxo CPF Senha JWT API
 
 Foi consolidada a collection [`postman/Oficina-DGCar-Tech-Challenge-Fase-3.postman_collection.json`](./postman/Oficina-DGCar-Tech-Challenge-Fase-3.postman_collection.json) para demonstrar os fluxos da Fase 3 em homologacao.
+
+## Swagger E Postman
+
+- Swagger UI: `${OFICINA_PUBLIC_BASE_URL}/swagger-ui.html`
+- OpenAPI JSON: `${OFICINA_PUBLIC_BASE_URL}/api-docs`
+- Collection Postman: [`postman/Oficina-DGCar-Tech-Challenge-Fase-3.postman_collection.json`](./postman/Oficina-DGCar-Tech-Challenge-Fase-3.postman_collection.json)
+- Variavel Postman: preencher `baseUrl` com o endpoint atual do API Gateway publicado pelo provisionamento.
 
 Pastas da collection:
 
@@ -177,10 +203,10 @@ Fluxo demonstrado em `Gateway JWT Cliente`:
 CPF e senha validos -> API Gateway -> Lambda Auth CPF + Senha -> JWT CLIENTE -> API Gateway -> API Spring no EKS -> consulta protegida das proprias OS
 ```
 
-A collection usa o endpoint oficial de homologacao:
+A collection usa a variavel `baseUrl`, que deve ser preenchida com o endpoint atual do API Gateway publicado pelo provisionamento:
 
 ```text
-https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com
+baseUrl=${OFICINA_PUBLIC_BASE_URL}
 ```
 
 CPF de massa usado como evidencia:
@@ -365,7 +391,7 @@ Variaveis obrigatorias no environment escolhido:
 
 O workflow tambem aceita `AWS_REGION`, `ECR_REPOSITORY`, `EKS_CLUSTER_NAME` e `SPRING_DATASOURCE_URL` como Secrets. Quando os dois existem, o valor em Secret tem prioridade.
 
-`OFICINA_PUBLIC_BASE_URL` deve apontar para o API Gateway, sem barra final, por exemplo `https://xxxx.execute-api.us-east-1.amazonaws.com`. Em `homolog` e `prod`, o workflow falha se essa variavel estiver vazia ou apontar para `localhost`, porque ela compoe os links enviados nos e-mails de status e decisao de orcamento.
+`OFICINA_PUBLIC_BASE_URL` deve apontar para o API Gateway, sem barra final, no formato `https://<api-gateway-id>.execute-api.<region>.amazonaws.com`. Em `homolog` e `prod`, o workflow falha se essa variavel estiver vazia ou apontar para `localhost`, porque ela compoe os links enviados nos e-mails de status e decisao de orcamento.
 
 Ao final do deploy, o workflow consulta o Service `oficina-api`, monta a URL HTTP do LoadBalancer e grava automaticamente o secret `API_BACKEND_URL` no environment `homolog` ou `prod` do repo `oficina-dgcar-infra-k8s`. Com isso, o passo seguinte do `infra-k8s` cria a rota proxy `ANY /{proxy+}` do API Gateway sem cadastro manual desse endpoint.
 
