@@ -13,6 +13,7 @@ import br.com.oficina.application.port.out.EmailNotificacaoPort;
 import br.com.oficina.application.port.out.OrcamentoDecisaoClienteRepositoryPort;
 import br.com.oficina.application.port.out.OrcamentoRepositoryPort;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.TokenSeguroPort;
 import br.com.oficina.application.query.OrdemServicoResult;
 import br.com.oficina.domain.model.Cliente;
@@ -70,7 +71,8 @@ class OrcamentoDecisaoClienteUseCaseTest {
                 aprovarOrcamentoInputPort,
                 rejeitarOrcamentoInputPort,
                 "http://localhost:8080",
-                48);
+                48,
+                OrdemServicoMetricsPort.NOOP);
 
         cliente = Cliente.builder()
                 .id(1L)

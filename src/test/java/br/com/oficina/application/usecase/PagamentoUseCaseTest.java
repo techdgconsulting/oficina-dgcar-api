@@ -4,6 +4,7 @@ import br.com.oficina.application.command.AprovarPagamentoCommand;
 import br.com.oficina.application.command.ProcessarPagamentoCommand;
 import br.com.oficina.application.command.RecusarPagamentoCommand;
 import br.com.oficina.application.exception.RecursoNaoEncontradoException;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.PagamentoGatewayPort;
 import br.com.oficina.application.port.out.PagamentoRepositoryPort;
 import br.com.oficina.domain.model.Pagamento;
@@ -42,7 +43,10 @@ class PagamentoUseCaseTest {
     void setUp() {
         aprovarPagamentoUseCase = new AprovarPagamentoUseCase(pagamentoRepository);
         recusarPagamentoUseCase = new RecusarPagamentoUseCase(pagamentoRepository);
-        processarPagamentoUseCase = new ProcessarPagamentoUseCase(pagamentoRepository, pagamentoGateway);
+        processarPagamentoUseCase = new ProcessarPagamentoUseCase(
+                pagamentoRepository,
+                pagamentoGateway,
+                OrdemServicoMetricsPort.NOOP);
     }
 
     @Test
