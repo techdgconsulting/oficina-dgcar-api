@@ -16,6 +16,15 @@ public interface OrdemServicoMetricsPort {
             StatusOS statusAnterior,
             StatusOS statusAtual,
             Duration tempoNoStatusAnterior) {
+        registrarMudancaStatus(fluxo, statusAnterior, statusAtual, tempoNoStatusAnterior, null);
+    }
+
+    default void registrarMudancaStatus(
+            String fluxo,
+            StatusOS statusAnterior,
+            StatusOS statusAtual,
+            Duration tempoNoStatusAnterior,
+            String mecanicoNome) {
     }
 
     default void registrarFalhaProcessamento(String fluxo, Throwable erro) {

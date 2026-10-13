@@ -19,7 +19,8 @@ class OrdemServicoMicrometerMetricsTest {
                 "iniciar_diagnostico",
                 StatusOS.RECEBIDA,
                 StatusOS.EM_DIAGNOSTICO,
-                Duration.ofSeconds(30));
+                Duration.ofSeconds(30),
+                "Joao Mecanico");
         metrics.registrarFalhaProcessamento("gerar_orcamento", new IllegalStateException("status invalido"));
         metrics.registrarFalhaNotificacao("status_os", StatusOS.EM_EXECUCAO, new RuntimeException("smtp"));
         metrics.registrarFalhaPagamento("recusado_gateway", null);
@@ -32,11 +33,13 @@ class OrdemServicoMicrometerMetricsTest {
                 "oficina_os_status_alterado_total",
                 "fluxo", "iniciar_diagnostico",
                 "status_anterior", "RECEBIDA",
-                "status_atual", "EM_DIAGNOSTICO").count());
+                "status_atual", "EM_DIAGNOSTICO",
+                "mecanico_nome", "Joao Mecanico").count());
         assertEquals(1, meterRegistry.timer(
                 "oficina_os_tempo_status",
                 "fluxo", "iniciar_diagnostico",
-                "status", "RECEBIDA").count());
+                "status", "RECEBIDA",
+                "mecanico_nome", "Joao Mecanico").count());
         assertEquals(1.0, meterRegistry.counter(
                 "oficina_os_processamento_falha_total",
                 "fluxo", "gerar_orcamento",

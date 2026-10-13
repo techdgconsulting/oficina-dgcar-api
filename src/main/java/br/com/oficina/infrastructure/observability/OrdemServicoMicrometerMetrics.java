@@ -36,30 +36,35 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
             String fluxo,
             StatusOS statusAnterior,
             StatusOS statusAtual,
-            Duration tempoNoStatusAnterior) {
+            Duration tempoNoStatusAnterior,
+            String mecanicoNome) {
         Counter.builder("oficina_os_status_alterado_total")
                 .description("Total de mudancas de status de ordens de servico")
                 .tag("fluxo", valor(fluxo))
                 .tag("status_anterior", status(statusAnterior))
                 .tag("status_atual", status(statusAtual))
+                .tag("mecanico_nome", valor(mecanicoNome))
                 .register(meterRegistry)
                 .increment();
         registrarEventoNewRelic("STATUS_ALTERADO", Map.of(
                 "fluxo", valor(fluxo),
                 "status_anterior", status(statusAnterior),
-                "status_atual", status(statusAtual)));
+                "status_atual", status(statusAtual),
+                "mecanico_nome", valor(mecanicoNome)));
 
         if (tempoNoStatusAnterior != null && !tempoNoStatusAnterior.isNegative()) {
             Timer.builder("oficina_os_tempo_status")
                     .description("Tempo observado ate a saida do status anterior da ordem de servico")
                     .tag("fluxo", valor(fluxo))
                     .tag("status", status(statusAnterior))
+                    .tag("mecanico_nome", valor(mecanicoNome))
                     .register(meterRegistry)
                     .record(tempoNoStatusAnterior);
             registrarEventoNewRelic("TEMPO_STATUS", Map.of(
                     "fluxo", valor(fluxo),
                     "status", status(statusAnterior),
-                    "tempo_ms", tempoNoStatusAnterior.toMillis()));
+                    "tempo_ms", tempoNoStatusAnterior.toMillis(),
+                    "mecanico_nome", valor(mecanicoNome)));
         }
     }
 
