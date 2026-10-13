@@ -497,11 +497,15 @@ public class OrdemDeServicoUseCase implements
     }
 
     private void registrarMudancaStatus(String fluxo, OrdemDeServico os, StatusOS statusAnterior) {
+        String mecanicoNome = execucaoRepository.buscarPorOrdemDeServico(os.getId())
+                .map(Execucao::getMecanicoNome)
+                .orElse(null);
         metricsPort.registrarMudancaStatus(
                 fluxo,
                 statusAnterior,
                 os.getStatus(),
-                tempoDesdeCriacao(os));
+                tempoDesdeCriacao(os),
+                mecanicoNome);
     }
 
     private Duration tempoDesdeCriacao(OrdemDeServico os) {
