@@ -1034,6 +1034,1898 @@
         }
       ],
       "description": "Fluxo dedicado para validar envio real de notificacoes por e-mail ao cliente. Antes de executar, configure emailClienteNotificacao com um e-mail valido e rode a aplicacao com OFICINA_EMAIL_MODE=SMTP. Para garantir todos os status, configure PAGAMENTO_GATEWAY_APPROVAL_RATE=1.0."
+    },
+    {
+      "name": "Popular Dashboard Negocio OS",
+      "description": "Gera massa operacional para popular o dashboard New Relic de negocio: volume diario, quantidade por status, atuacoes por mecanico, tempo por status e falhas de integracao. Execute apos o deploy da API instrumentada e aguarde alguns minutos para o snapshot de status aparecer no New Relic.",
+      "item": [
+        {
+          "name": "00 - Preparar massa e Login GESTOR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"gestor1\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function randomDigits(size) {",
+                  "  var out = '';",
+                  "  for (var i = 0; i < size; i++) out += Math.floor(Math.random() * 10);",
+                  "  return out;",
+                  "}",
+                  "function cpfCheckDigit(base) {",
+                  "  var sum = 0;",
+                  "  for (var i = 0; i < base.length; i++) sum += parseInt(base[i], 10) * (base.length + 1 - i);",
+                  "  var mod = sum % 11;",
+                  "  return mod < 2 ? 0 : 11 - mod;",
+                  "}",
+                  "function generateCpf() {",
+                  "  var base = randomDigits(9);",
+                  "  var d1 = cpfCheckDigit(base);",
+                  "  var d2 = cpfCheckDigit(base + d1);",
+                  "  return base + d1 + d2;",
+                  "}",
+                  "var runId = Date.now().toString().slice(-8);",
+                  "pm.collectionVariables.set('dash_runId', runId);",
+                  "['recebida','diagnostico','aprovacao','execucao','finalizada','retirada','entregue','cancelada'].forEach(function(cenario, idx) {",
+                  "  pm.collectionVariables.set('dash_' + cenario + '_documento', generateCpf());",
+                  "  pm.collectionVariables.set('dash_' + cenario + '_placa', 'DBD' + idx + String.fromCharCode(65 + idx) + runId.slice(-2));",
+                  "  pm.collectionVariables.unset('dash_' + cenario + '_osId');",
+                  "  pm.collectionVariables.unset('dash_' + cenario + '_osNumero');",
+                  "});",
+                  "['dash_tokenGestor','dash_tokenAtendente','dash_tokenMecanico','dash_servicoId','dash_pecaId'].forEach(function(k) { pm.collectionVariables.unset(k); });",
+                  "console.log('[DASHBOARD OS] runId=' + runId);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 00] Login 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 00] Token recebido', () => pm.expect(json.token).to.be.a('string').and.not.be.empty);",
+                  "pm.collectionVariables.set('dash_tokenGestor', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01 - Login ATENDENTE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"atendente1\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 01] Login 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 01] Token recebido', () => pm.expect(json.token).to.be.a('string').and.not.be.empty);",
+                  "pm.collectionVariables.set('dash_tokenAtendente', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 - Login MECANICO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"mecanico1\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 02] Login 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 02] Token recebido', () => pm.expect(json.token).to.be.a('string').and.not.be.empty);",
+                  "pm.collectionVariables.set('dash_tokenMecanico', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 - Criar servico para massa dashboard",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/servicos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "servicos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Servico Dashboard {{dash_runId}}\",\n  \"descricao\": \"Servico criado para popular o dashboard de negocio\",\n  \"valorUnitario\": 320.00,\n  \"tempoEstimadoMinutos\": 90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 03] Servico criado 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('dash_servicoId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04 - Criar peca para massa dashboard",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/pecas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pecas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Peca Dashboard {{dash_runId}}\",\n  \"descricao\": \"Peca criada para popular o dashboard de negocio\",\n  \"quantidadeEstoque\": 100,\n  \"valorUnitario\": 85.00,\n  \"estoqueMinimo\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 04] Peca criada 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('dash_pecaId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05 - Criar OS RECEBIDA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_recebida_documento}}\",\n    \"nome\": \"Cliente Dashboard recebida {{dash_runId}}\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"dashboard.recebida.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_recebida_placa}}\",\n    \"marca\": \"Volkswagen\",\n    \"modelo\": \"Polo Dashboard recebida\",\n    \"ano\": 2022\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": {{dash_servicoId}},\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": {{dash_pecaId}},\n      \"quantidade\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 05] OS recebida criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 05] Status RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));",
+                  "pm.collectionVariables.set('dash_recebida_osId', json.id);",
+                  "pm.collectionVariables.set('dash_recebida_osNumero', json.numero);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06 - Criar OS EM_DIAGNOSTICO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_diagnostico_documento}}\",\n    \"nome\": \"Cliente Dashboard diagnostico {{dash_runId}}\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"dashboard.diagnostico.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_diagnostico_placa}}\",\n    \"marca\": \"Volkswagen\",\n    \"modelo\": \"Polo Dashboard diagnostico\",\n    \"ano\": 2022\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": {{dash_servicoId}},\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": {{dash_pecaId}},\n      \"quantidade\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 06] OS diagnostico criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 06] Status RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));",
+                  "pm.collectionVariables.set('dash_diagnostico_osId', json.id);",
+                  "pm.collectionVariables.set('dash_diagnostico_osNumero', json.numero);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07 - diagnostico iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_diagnostico_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_diagnostico_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 07] Status EM_DIAGNOSTICO', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 07] OS EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08 - Criar OS AGUARDANDO_APROVACAO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_aprovacao_documento}}\",\n    \"nome\": \"Cliente Dashboard aprovacao {{dash_runId}}\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"dashboard.aprovacao.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_aprovacao_placa}}\",\n    \"marca\": \"Volkswagen\",\n    \"modelo\": \"Polo Dashboard aprovacao\",\n    \"ano\": 2022\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": {{dash_servicoId}},\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": {{dash_pecaId}},\n      \"quantidade\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 08] OS aprovacao criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 08] Status RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));",
+                  "pm.collectionVariables.set('dash_aprovacao_osId', json.id);",
+                  "pm.collectionVariables.set('dash_aprovacao_osNumero', json.numero);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09 - aprovacao iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_aprovacao_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_aprovacao_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 09] Status EM_DIAGNOSTICO', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 09] OS EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10 - aprovacao gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_aprovacao_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_aprovacao_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 10] Orcamento gerado 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11 - Criar OS EM_EXECUCAO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_execucao_documento}}\",\n    \"nome\": \"Cliente Dashboard execucao {{dash_runId}}\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"dashboard.execucao.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_execucao_placa}}\",\n    \"marca\": \"Volkswagen\",\n    \"modelo\": \"Polo Dashboard execucao\",\n    \"ano\": 2022\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": {{dash_servicoId}},\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": {{dash_pecaId}},\n      \"quantidade\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 11] OS execucao criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 11] Status RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));",
+                  "pm.collectionVariables.set('dash_execucao_osId', json.id);",
+                  "pm.collectionVariables.set('dash_execucao_osNumero', json.numero);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12 - execucao iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_execucao_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_execucao_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 12] Status EM_DIAGNOSTICO', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 12] OS EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13 - execucao gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_execucao_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_execucao_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 13] Orcamento gerado 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14 - execucao aprovar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_execucao_osId}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_execucao_osId}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 14] Status EM_EXECUCAO', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 14] OS EM_EXECUCAO', () => pm.expect(pm.response.json().status).to.eql('EM_EXECUCAO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15 - Criar OS FINALIZADA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_finalizada_documento}}\",\n    \"nome\": \"Cliente Dashboard finalizada {{dash_runId}}\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"dashboard.finalizada.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_finalizada_placa}}\",\n    \"marca\": \"Volkswagen\",\n    \"modelo\": \"Polo Dashboard finalizada\",\n    \"ano\": 2022\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": {{dash_servicoId}},\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": {{dash_pecaId}},\n      \"quantidade\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 15] OS finalizada criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 15] Status RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));",
+                  "pm.collectionVariables.set('dash_finalizada_osId', json.id);",
+                  "pm.collectionVariables.set('dash_finalizada_osNumero', json.numero);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16 - finalizada iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_finalizada_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_finalizada_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 16] Status EM_DIAGNOSTICO', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 16] OS EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "17 - finalizada gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_finalizada_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_finalizada_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 17] Orcamento gerado 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18 - finalizada aprovar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_finalizada_osId}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_finalizada_osId}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 18] Status EM_EXECUCAO', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 18] OS EM_EXECUCAO', () => pm.expect(pm.response.json().status).to.eql('EM_EXECUCAO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "19 - finalizada finalizar servico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_finalizada_osId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_finalizada_osId}}",
+                "finalizar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 19] Status FINALIZADA', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 19] OS FINALIZADA', () => pm.expect(pm.response.json().status).to.eql('FINALIZADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "20 - Criar OS AGUARDANDO_RETIRADA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_retirada_documento}}\",\n    \"nome\": \"Cliente Dashboard retirada {{dash_runId}}\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"dashboard.retirada.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_retirada_placa}}\",\n    \"marca\": \"Volkswagen\",\n    \"modelo\": \"Polo Dashboard retirada\",\n    \"ano\": 2022\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": {{dash_servicoId}},\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": {{dash_pecaId}},\n      \"quantidade\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 20] OS retirada criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 20] Status RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));",
+                  "pm.collectionVariables.set('dash_retirada_osId', json.id);",
+                  "pm.collectionVariables.set('dash_retirada_osNumero', json.numero);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "21 - retirada iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_retirada_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_retirada_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 21] Status EM_DIAGNOSTICO', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 21] OS EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "22 - retirada gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_retirada_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_retirada_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 22] Orcamento gerado 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "23 - retirada aprovar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_retirada_osId}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_retirada_osId}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 23] Status EM_EXECUCAO', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 23] OS EM_EXECUCAO', () => pm.expect(pm.response.json().status).to.eql('EM_EXECUCAO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "24 - retirada finalizar servico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_retirada_osId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_retirada_osId}}",
+                "finalizar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 24] Status FINALIZADA', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 24] OS FINALIZADA', () => pm.expect(pm.response.json().status).to.eql('FINALIZADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "25 - retirada registrar pagamento PIX",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_retirada_osId}}/pagamento?metodoPagamento=PIX",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_retirada_osId}}",
+                "pagamento?metodoPagamento=PIX"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 25] Pagamento aprovado 200', () => {",
+                  "  if (pm.response.code !== 200) console.warn('[DASH 25] Pagamento nao aprovado. Verifique PAGAMENTO_GATEWAY_APPROVAL_RATE em homolog.');",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('[DASH 25] OS AGUARDANDO_RETIRADA', () => pm.expect(pm.response.json().status).to.eql('AGUARDANDO_RETIRADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "26 - Criar OS ENTREGUE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_entregue_documento}}\",\n    \"nome\": \"Cliente Dashboard entregue {{dash_runId}}\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"dashboard.entregue.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_entregue_placa}}\",\n    \"marca\": \"Volkswagen\",\n    \"modelo\": \"Polo Dashboard entregue\",\n    \"ano\": 2022\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": {{dash_servicoId}},\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": {{dash_pecaId}},\n      \"quantidade\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 26] OS entregue criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 26] Status RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));",
+                  "pm.collectionVariables.set('dash_entregue_osId', json.id);",
+                  "pm.collectionVariables.set('dash_entregue_osNumero', json.numero);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "27 - entregue iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_entregue_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_entregue_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 27] Status EM_DIAGNOSTICO', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 27] OS EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "28 - entregue gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_entregue_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_entregue_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 28] Orcamento gerado 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "29 - entregue aprovar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_entregue_osId}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_entregue_osId}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 29] Status EM_EXECUCAO', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 29] OS EM_EXECUCAO', () => pm.expect(pm.response.json().status).to.eql('EM_EXECUCAO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "30 - entregue finalizar servico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_entregue_osId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_entregue_osId}}",
+                "finalizar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 30] Status FINALIZADA', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 30] OS FINALIZADA', () => pm.expect(pm.response.json().status).to.eql('FINALIZADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "31 - entregue registrar pagamento PIX",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_entregue_osId}}/pagamento?metodoPagamento=PIX",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_entregue_osId}}",
+                "pagamento?metodoPagamento=PIX"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 31] Pagamento aprovado 200', () => {",
+                  "  if (pm.response.code !== 200) console.warn('[DASH 31] Pagamento nao aprovado. Verifique PAGAMENTO_GATEWAY_APPROVAL_RATE em homolog.');",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('[DASH 31] OS AGUARDANDO_RETIRADA', () => pm.expect(pm.response.json().status).to.eql('AGUARDANDO_RETIRADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "32 - entregue entregar veiculo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_entregue_osId}}/entregar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_entregue_osId}}",
+                "entregar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 32] Status ENTREGUE', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 32] OS ENTREGUE', () => pm.expect(pm.response.json().status).to.eql('ENTREGUE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "33 - Criar OS CANCELADA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_cancelada_documento}}\",\n    \"nome\": \"Cliente Dashboard cancelada {{dash_runId}}\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"dashboard.cancelada.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_cancelada_placa}}\",\n    \"marca\": \"Volkswagen\",\n    \"modelo\": \"Polo Dashboard cancelada\",\n    \"ano\": 2022\n  },\n  \"servicos\": [\n    {\n      \"servicoId\": {{dash_servicoId}},\n      \"quantidade\": 1\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": {{dash_pecaId}},\n      \"quantidade\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 33] OS cancelada criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 33] Status RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));",
+                  "pm.collectionVariables.set('dash_cancelada_osId', json.id);",
+                  "pm.collectionVariables.set('dash_cancelada_osNumero', json.numero);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "34 - cancelada iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_cancelada_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_cancelada_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMecanico}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 34] Status EM_DIAGNOSTICO', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 34] OS EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "35 - cancelada gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_cancelada_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_cancelada_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 35] Orcamento gerado 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "36 - cancelada rejeitar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_cancelada_osId}}/rejeitar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_cancelada_osId}}",
+                "rejeitar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 36] Status CANCELADA', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 36] OS CANCELADA', () => pm.expect(pm.response.json().status).to.eql('CANCELADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "37 - Validar fila operacional",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/fila",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "fila"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 37] Fila operacional 200', () => pm.response.to.have.status(200));",
+                  "var body = pm.response.json();",
+                  "pm.test('[DASH 37] Fila e array', () => pm.expect(body).to.be.an('array'));",
+                  "console.log('[DASHBOARD OS] Massa criada. Aguarde ate 2 minutos para o snapshot OficinaOsStatusSnapshot e os eventos OficinaOsEvent aparecerem no New Relic.');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
