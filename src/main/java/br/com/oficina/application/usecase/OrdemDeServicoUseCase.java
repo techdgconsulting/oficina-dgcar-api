@@ -127,6 +127,7 @@ public class OrdemDeServicoUseCase implements
 
             execucaoRepository.salvar(Execucao.criar(os.getId()));
             metricsPort.registrarOsCriada("simples", os.getStatus(), os.getNumero());
+            metricsPort.registrarSnapshotOperacional(os, cliente, veiculo, null);
             notificarStatus(os);
             return toResult(os);
         } catch (RuntimeException ex) {
@@ -507,6 +508,9 @@ public class OrdemDeServicoUseCase implements
                 tempoDesdeCriacao(os),
                 mecanicoNome,
                 os.getNumero());
+        var cliente = clienteRepository.buscarPorId(os.getClienteId()).orElse(os.getCliente());
+        var veiculo = veiculoRepository.buscarPorId(os.getVeiculoId()).orElse(os.getVeiculo());
+        metricsPort.registrarSnapshotOperacional(os, cliente, veiculo, mecanicoNome);
     }
 
     private Duration tempoDesdeCriacao(OrdemDeServico os) {

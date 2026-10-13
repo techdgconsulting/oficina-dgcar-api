@@ -1,12 +1,16 @@
 package br.com.oficina.infrastructure.observability;
 
 import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
+import br.com.oficina.domain.model.Cliente;
+import br.com.oficina.domain.model.OrdemDeServico;
+import br.com.oficina.domain.model.Veiculo;
 import br.com.oficina.domain.valueobject.StatusOS;
 import com.newrelic.api.agent.NewRelic;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -73,6 +77,25 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
     }
 
     @Override
+    public void registrarSnapshotOperacional(
+            OrdemDeServico os,
+            Cliente cliente,
+            Veiculo veiculo,
+            String mecanicoNome) {
+        Map<String, Object> atributos = new HashMap<>();
+        atributos.put("numero_os", valor(os.getNumero()));
+        atributos.put("status", status(os.getStatus()));
+        atributos.put("cliente_nome", cliente != null ? valor(cliente.getNome()) : "NAO_INFORMADO");
+        atributos.put("veiculo", veiculo != null ? valor(veiculo.getMarca() + " " + veiculo.getModelo()) : "NAO_INFORMADO");
+        atributos.put("placa", veiculo != null && veiculo.getPlaca() != null ? veiculo.getPlaca().getValor() : "NAO_INFORMADO");
+        atributos.put("mecanico_nome", valor(mecanicoNome));
+        atributos.put("atendente_nome", valor(os.getAtendenteNome()));
+        atributos.put("idade_minutos", idadeMinutos(os));
+        atributos.put("valor_total", os.calcularValorTotal().doubleValue());
+        NewRelic.getAgent().getInsights().recordCustomEvent("OficinaOsOperationalSnapshot", atributos);
+    }
+
+    @Override
     public void registrarFalhaProcessamento(String fluxo, Throwable erro) {
         Counter.builder("oficina_os_processamento_falha_total")
                 .description("Total de falhas no processamento de ordens de servico")
@@ -117,6 +140,14 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
         Map<String, Object> eventoAtributos = new HashMap<>(atributos);
         eventoAtributos.put("evento", evento);
         NewRelic.getAgent().getInsights().recordCustomEvent("OficinaOsEvent", eventoAtributos);
+    }
+
+    private static long idadeMinutos(OrdemDeServico os) {
+        if (os.getDataCriacao() == null) {
+            return 0;
+        }
+        var fim = os.getDataFinalizacao() != null ? os.getDataFinalizacao() : LocalDateTime.now();
+        return Math.max(Duration.between(os.getDataCriacao(), fim).toMinutes(), 0);
     }
 
     private static String status(StatusOS status) {
