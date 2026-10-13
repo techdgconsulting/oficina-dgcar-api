@@ -2,10 +2,13 @@ package br.com.oficina.infrastructure.observability;
 
 import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.domain.valueobject.StatusOS;
+import com.newrelic.api.agent.NewRelic;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +26,9 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
                 .tag("status", status(status))
                 .register(meterRegistry)
                 .increment();
+        registrarEventoNewRelic("OS_CRIADA", Map.of(
+                "origem", valor(origem),
+                "status", status(status)));
     }
 
     @Override
@@ -38,6 +44,10 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
                 .tag("status_atual", status(statusAtual))
                 .register(meterRegistry)
                 .increment();
+        registrarEventoNewRelic("STATUS_ALTERADO", Map.of(
+                "fluxo", valor(fluxo),
+                "status_anterior", status(statusAnterior),
+                "status_atual", status(statusAtual)));
 
         if (tempoNoStatusAnterior != null && !tempoNoStatusAnterior.isNegative()) {
             Timer.builder("oficina_os_tempo_status")
@@ -46,6 +56,10 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
                     .tag("status", status(statusAnterior))
                     .register(meterRegistry)
                     .record(tempoNoStatusAnterior);
+            registrarEventoNewRelic("TEMPO_STATUS", Map.of(
+                    "fluxo", valor(fluxo),
+                    "status", status(statusAnterior),
+                    "tempo_ms", tempoNoStatusAnterior.toMillis()));
         }
     }
 
@@ -57,6 +71,9 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
                 .tag("erro", erro(erro))
                 .register(meterRegistry)
                 .increment();
+        registrarEventoNewRelic("FALHA_PROCESSAMENTO", Map.of(
+                "fluxo", valor(fluxo),
+                "erro", erro(erro)));
     }
 
     @Override
@@ -68,6 +85,10 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
                 .tag("erro", erro(erro))
                 .register(meterRegistry)
                 .increment();
+        registrarEventoNewRelic("FALHA_NOTIFICACAO", Map.of(
+                "tipo", valor(tipo),
+                "status", status(status),
+                "erro", erro(erro)));
     }
 
     @Override
@@ -78,6 +99,15 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
                 .tag("erro", erro(erro))
                 .register(meterRegistry)
                 .increment();
+        registrarEventoNewRelic("FALHA_PAGAMENTO", Map.of(
+                "motivo", valor(motivo),
+                "erro", erro(erro)));
+    }
+
+    private void registrarEventoNewRelic(String evento, Map<String, Object> atributos) {
+        Map<String, Object> eventoAtributos = new HashMap<>(atributos);
+        eventoAtributos.put("evento", evento);
+        NewRelic.getAgent().getInsights().recordCustomEvent("OficinaOsEvent", eventoAtributos);
     }
 
     private static String status(StatusOS status) {
