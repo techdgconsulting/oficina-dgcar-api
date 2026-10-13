@@ -14,13 +14,14 @@ class OrdemServicoMicrometerMetricsTest {
 
     @Test
     void registraEventosDeNegocioDaOrdemDeServico() {
-        metrics.registrarOsCriada("completa", StatusOS.RECEBIDA);
+        metrics.registrarOsCriada("completa", StatusOS.RECEBIDA, "OS-2026-00001");
         metrics.registrarMudancaStatus(
                 "iniciar_diagnostico",
                 StatusOS.RECEBIDA,
                 StatusOS.EM_DIAGNOSTICO,
                 Duration.ofSeconds(30),
-                "Joao Mecanico");
+                "Joao Mecanico",
+                "OS-2026-00001");
         metrics.registrarFalhaProcessamento("gerar_orcamento", new IllegalStateException("status invalido"));
         metrics.registrarFalhaNotificacao("status_os", StatusOS.EM_EXECUCAO, new RuntimeException("smtp"));
         metrics.registrarFalhaPagamento("recusado_gateway", null);

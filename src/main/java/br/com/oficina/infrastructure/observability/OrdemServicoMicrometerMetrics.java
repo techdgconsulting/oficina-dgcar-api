@@ -19,7 +19,7 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
     private final MeterRegistry meterRegistry;
 
     @Override
-    public void registrarOsCriada(String origem, StatusOS status) {
+    public void registrarOsCriada(String origem, StatusOS status, String numeroOs) {
         Counter.builder("oficina_os_criada_total")
                 .description("Total de ordens de servico criadas")
                 .tag("origem", valor(origem))
@@ -28,7 +28,8 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
                 .increment();
         registrarEventoNewRelic("OS_CRIADA", Map.of(
                 "origem", valor(origem),
-                "status", status(status)));
+                "status", status(status),
+                "numero_os", valor(numeroOs)));
     }
 
     @Override
@@ -37,7 +38,8 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
             StatusOS statusAnterior,
             StatusOS statusAtual,
             Duration tempoNoStatusAnterior,
-            String mecanicoNome) {
+            String mecanicoNome,
+            String numeroOs) {
         Counter.builder("oficina_os_status_alterado_total")
                 .description("Total de mudancas de status de ordens de servico")
                 .tag("fluxo", valor(fluxo))
@@ -50,7 +52,8 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
                 "fluxo", valor(fluxo),
                 "status_anterior", status(statusAnterior),
                 "status_atual", status(statusAtual),
-                "mecanico_nome", valor(mecanicoNome)));
+                "mecanico_nome", valor(mecanicoNome),
+                "numero_os", valor(numeroOs)));
 
         if (tempoNoStatusAnterior != null && !tempoNoStatusAnterior.isNegative()) {
             Timer.builder("oficina_os_tempo_status")
@@ -64,7 +67,8 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
                     "fluxo", valor(fluxo),
                     "status", status(statusAnterior),
                     "tempo_ms", tempoNoStatusAnterior.toMillis(),
-                    "mecanico_nome", valor(mecanicoNome)));
+                    "mecanico_nome", valor(mecanicoNome),
+                    "numero_os", valor(numeroOs)));
         }
     }
 

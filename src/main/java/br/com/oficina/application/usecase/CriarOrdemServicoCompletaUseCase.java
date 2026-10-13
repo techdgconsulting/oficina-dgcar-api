@@ -63,7 +63,7 @@ public class CriarOrdemServicoCompletaUseCase implements CriarOrdemServicoComple
             os = osRepository.salvar(os);
 
             execucaoRepository.salvar(Execucao.criar(os.getId()));
-            metricsPort.registrarOsCriada("completa", os.getStatus());
+            metricsPort.registrarOsCriada("completa", os.getStatus(), os.getNumero());
             notificarStatus(os, cliente);
             return toResult(os);
         } catch (RuntimeException ex) {
