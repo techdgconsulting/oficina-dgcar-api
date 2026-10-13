@@ -1,10 +1,17 @@
 package br.com.oficina.infrastructure.observability;
 
+import br.com.oficina.domain.model.Cliente;
+import br.com.oficina.domain.model.OrdemDeServico;
+import br.com.oficina.domain.model.Veiculo;
+import br.com.oficina.domain.valueobject.CpfCnpj;
+import br.com.oficina.domain.valueobject.Placa;
 import br.com.oficina.domain.valueobject.StatusOS;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class OrdemServicoMicrometerMetricsTest {
@@ -25,6 +32,36 @@ class OrdemServicoMicrometerMetricsTest {
         metrics.registrarFalhaProcessamento("gerar_orcamento", new IllegalStateException("status invalido"));
         metrics.registrarFalhaNotificacao("status_os", StatusOS.EM_EXECUCAO, new RuntimeException("smtp"));
         metrics.registrarFalhaPagamento("recusado_gateway", null);
+        metrics.registrarSnapshotOperacional(
+                OrdemDeServico.builder()
+                        .id(1L)
+                        .numero("OS-2026-00001")
+                        .status(StatusOS.EM_EXECUCAO)
+                        .atendenteNome("Mariana Souza")
+                        .dataCriacao(LocalDateTime.now().minusMinutes(20))
+                        .build(),
+                Cliente.builder()
+                        .id(1L)
+                        .documento(new CpfCnpj("52998224725"))
+                        .nome("Ana Martins")
+                        .build(),
+                Veiculo.builder()
+                        .id(1L)
+                        .placa(new Placa("DGC0A26"))
+                        .marca("Toyota")
+                        .modelo("Corolla XEi")
+                        .ano(2022)
+                        .build(),
+                "Carlos Silva");
+        assertDoesNotThrow(() -> metrics.registrarSnapshotOperacional(
+                OrdemDeServico.builder()
+                        .numero(null)
+                        .status(null)
+                        .dataCriacao(null)
+                        .build(),
+                null,
+                null,
+                null));
 
         assertEquals(1.0, meterRegistry.counter(
                 "oficina_os_criada_total",

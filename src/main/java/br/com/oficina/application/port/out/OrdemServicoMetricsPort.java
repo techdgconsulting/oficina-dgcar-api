@@ -1,5 +1,8 @@
 package br.com.oficina.application.port.out;
 
+import br.com.oficina.domain.model.Cliente;
+import br.com.oficina.domain.model.OrdemDeServico;
+import br.com.oficina.domain.model.Veiculo;
 import br.com.oficina.domain.valueobject.StatusOS;
 import java.time.Duration;
 
@@ -39,6 +42,13 @@ public interface OrdemServicoMetricsPort {
             Duration tempoNoStatusAnterior,
             String mecanicoNome,
             String numeroOs) {
+    }
+
+    default void registrarSnapshotOperacional(
+            OrdemDeServico os,
+            Cliente cliente,
+            Veiculo veiculo,
+            String mecanicoNome) {
     }
 
     default void registrarFalhaProcessamento(String fluxo, Throwable erro) {

@@ -50,7 +50,14 @@ public class OrdemServicoStatusSnapshotPublisher {
 
     private void publicarOrdensOperacionais() {
         try {
-            ordemDeServicoRepository.listarTodas().forEach(this::publicarOrdemOperacional);
+            ordemDeServicoRepository.listarTodas().forEach(os -> {
+                try {
+                    publicarOrdemOperacional(os);
+                } catch (RuntimeException ex) {
+                    log.warn("NEW_RELIC_OS_OPERATIONAL_SNAPSHOT_FALHOU numero_os={} erro={}",
+                            os.getNumero(), ex.getMessage());
+                }
+            });
         } catch (RuntimeException ex) {
             log.warn("NEW_RELIC_OS_OPERATIONAL_SNAPSHOT_FALHOU erro={}", ex.getMessage());
         }
