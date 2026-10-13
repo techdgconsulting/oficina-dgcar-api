@@ -9,6 +9,10 @@ public interface OrdemServicoMetricsPort {
     };
 
     default void registrarOsCriada(String origem, StatusOS status) {
+        registrarOsCriada(origem, status, null);
+    }
+
+    default void registrarOsCriada(String origem, StatusOS status, String numeroOs) {
     }
 
     default void registrarMudancaStatus(
@@ -16,7 +20,7 @@ public interface OrdemServicoMetricsPort {
             StatusOS statusAnterior,
             StatusOS statusAtual,
             Duration tempoNoStatusAnterior) {
-        registrarMudancaStatus(fluxo, statusAnterior, statusAtual, tempoNoStatusAnterior, null);
+        registrarMudancaStatus(fluxo, statusAnterior, statusAtual, tempoNoStatusAnterior, null, null);
     }
 
     default void registrarMudancaStatus(
@@ -25,6 +29,16 @@ public interface OrdemServicoMetricsPort {
             StatusOS statusAtual,
             Duration tempoNoStatusAnterior,
             String mecanicoNome) {
+        registrarMudancaStatus(fluxo, statusAnterior, statusAtual, tempoNoStatusAnterior, mecanicoNome, null);
+    }
+
+    default void registrarMudancaStatus(
+            String fluxo,
+            StatusOS statusAnterior,
+            StatusOS statusAtual,
+            Duration tempoNoStatusAnterior,
+            String mecanicoNome,
+            String numeroOs) {
     }
 
     default void registrarFalhaProcessamento(String fluxo, Throwable erro) {

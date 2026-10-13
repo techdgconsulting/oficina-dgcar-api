@@ -1034,6 +1034,2982 @@
         }
       ],
       "description": "Fluxo dedicado para validar envio real de notificacoes por e-mail ao cliente. Antes de executar, configure emailClienteNotificacao com um e-mail valido e rode a aplicacao com OFICINA_EMAIL_MODE=SMTP. Para garantir todos os status, configure PAGAMENTO_GATEWAY_APPROVAL_RATE=1.0."
+    },
+    {
+      "name": "Popular Dashboard Negocio OS",
+      "description": "Cria massa realista para o dashboard operacional da oficina no New Relic: clientes, veiculos, servicos, OS em diferentes status e mecanicos com nomes reais.",
+      "item": [
+        {
+          "name": "00 - Preparar dados e Login Gestora Patricia Almeida",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"Patricia Almeida\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function randomDigits(size) {",
+                  "  var out = '';",
+                  "  for (var i = 0; i < size; i++) out += Math.floor(Math.random() * 10);",
+                  "  return out;",
+                  "}",
+                  "function cpfCheckDigit(base) {",
+                  "  var sum = 0;",
+                  "  for (var i = 0; i < base.length; i++) sum += parseInt(base[i], 10) * (base.length + 1 - i);",
+                  "  var mod = sum % 11;",
+                  "  return mod < 2 ? 0 : 11 - mod;",
+                  "}",
+                  "function generateCpf() {",
+                  "  var base = randomDigits(9);",
+                  "  var d1 = cpfCheckDigit(base);",
+                  "  var d2 = cpfCheckDigit(base + d1);",
+                  "  return base + d1 + d2;",
+                  "}",
+                  "var runId = Date.now().toString().slice(-8);",
+                  "pm.collectionVariables.set('dash_runId', runId);",
+                  "['ana','bruno','carla','diego','elisa','fabio','gisele','henrique','isabela','joao'].forEach(function(cenario, idx) {",
+                  "  pm.collectionVariables.set('dash_' + cenario + '_documento', generateCpf());",
+                  "  pm.collectionVariables.set('dash_' + cenario + '_placa', 'DGC' + idx + String.fromCharCode(65 + idx) + runId.slice(-2));",
+                  "  pm.collectionVariables.unset('dash_' + cenario + '_osId');",
+                  "  pm.collectionVariables.unset('dash_' + cenario + '_osNumero');",
+                  "});",
+                  "['dash_tokenGestor','dash_tokenAtendente','dash_tokenCarlos','dash_tokenRafael','dash_tokenMarcos','dash_tokenJuliana','dash_tokenFernanda','dash_servicoRevisaoId','dash_servicoFreiosId','dash_servicoSuspensaoId','dash_servicoArId','dash_servicoOleoId','dash_pecaFiltroId','dash_pecaPastilhaId','dash_pecaAmortecedorId','dash_pecaCorreiaId'].forEach(function(k) { pm.collectionVariables.unset(k); });",
+                  "console.log('[DASHBOARD OS REALISTA] runId=' + runId);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 00] Patricia Almeida login 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 00] Patricia Almeida token recebido', () => pm.expect(json.token).to.be.a('string').and.not.be.empty);",
+                  "pm.collectionVariables.set('dash_tokenGestor', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01 - Login Atendente Mariana Souza",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"Mariana Souza\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 01] Mariana Souza login 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH 01] Mariana Souza token recebido', () => pm.expect(json.token).to.be.a('string').and.not.be.empty);",
+                  "pm.collectionVariables.set('dash_tokenAtendente', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 - Login Mecanico Carlos Silva",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"Carlos Silva\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH] Carlos Silva login 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH] Carlos Silva token recebido', () => pm.expect(json.token).to.be.a('string').and.not.be.empty);",
+                  "pm.collectionVariables.set('dash_tokenCarlos', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 - Login Mecanico Rafael Costa",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"Rafael Costa\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH] Rafael Costa login 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH] Rafael Costa token recebido', () => pm.expect(json.token).to.be.a('string').and.not.be.empty);",
+                  "pm.collectionVariables.set('dash_tokenRafael', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04 - Login Mecanico Marcos Santos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"Marcos Santos\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH] Marcos Santos login 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH] Marcos Santos token recebido', () => pm.expect(json.token).to.be.a('string').and.not.be.empty);",
+                  "pm.collectionVariables.set('dash_tokenMarcos', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05 - Login Mecanica Juliana Lima",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"Juliana Lima\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH] Juliana Lima login 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH] Juliana Lima token recebido', () => pm.expect(json.token).to.be.a('string').and.not.be.empty);",
+                  "pm.collectionVariables.set('dash_tokenJuliana', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06 - Login Mecanica Fernanda Alves",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"Fernanda Alves\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH] Fernanda Alves login 200', () => pm.response.to.have.status(200));",
+                  "var json = pm.response.json();",
+                  "pm.test('[DASH] Fernanda Alves token recebido', () => pm.expect(json.token).to.be.a('string').and.not.be.empty);",
+                  "pm.collectionVariables.set('dash_tokenFernanda', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07 - Criar servico Revisao 60k",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/servicos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "servicos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Revisao 60k Dashboard {{dash_runId}}\",\n  \"descricao\": \"Revisao 60k para massa operacional do dashboard\",\n  \"valorUnitario\": 680.00,\n  \"tempoEstimadoMinutos\": 180\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('07 - Criar servico Revisao 60k 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('dash_servicoRevisaoId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08 - Criar servico Freios",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/servicos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "servicos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Sistema de freios Dashboard {{dash_runId}}\",\n  \"descricao\": \"Sistema de freios para massa operacional do dashboard\",\n  \"valorUnitario\": 420.00,\n  \"tempoEstimadoMinutos\": 120\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('08 - Criar servico Freios 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('dash_servicoFreiosId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09 - Criar servico Suspensao",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/servicos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "servicos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Suspensao e estabilidade Dashboard {{dash_runId}}\",\n  \"descricao\": \"Suspensao e estabilidade para massa operacional do dashboard\",\n  \"valorUnitario\": 560.00,\n  \"tempoEstimadoMinutos\": 150\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('09 - Criar servico Suspensao 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('dash_servicoSuspensaoId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10 - Criar servico Ar condicionado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/servicos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "servicos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Ar condicionado Dashboard {{dash_runId}}\",\n  \"descricao\": \"Ar condicionado para massa operacional do dashboard\",\n  \"valorUnitario\": 390.00,\n  \"tempoEstimadoMinutos\": 90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('10 - Criar servico Ar condicionado 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('dash_servicoArId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11 - Criar servico Troca de oleo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/servicos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "servicos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Troca de oleo Dashboard {{dash_runId}}\",\n  \"descricao\": \"Troca de oleo para massa operacional do dashboard\",\n  \"valorUnitario\": 120.00,\n  \"tempoEstimadoMinutos\": 45\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('11 - Criar servico Troca de oleo 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('dash_servicoOleoId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12 - Criar peca Filtro de oleo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/pecas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pecas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Filtro de oleo premium Dashboard {{dash_runId}}\",\n  \"descricao\": \"Filtro de oleo premium para massa operacional do dashboard\",\n  \"quantidadeEstoque\": 80,\n  \"valorUnitario\": 55.00,\n  \"estoqueMinimo\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('12 - Criar peca Filtro de oleo 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('dash_pecaFiltroId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13 - Criar peca Pastilha de freio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/pecas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pecas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Pastilha de freio dianteira Dashboard {{dash_runId}}\",\n  \"descricao\": \"Pastilha de freio dianteira para massa operacional do dashboard\",\n  \"quantidadeEstoque\": 80,\n  \"valorUnitario\": 210.00,\n  \"estoqueMinimo\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('13 - Criar peca Pastilha de freio 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('dash_pecaPastilhaId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14 - Criar peca Amortecedor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/pecas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pecas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Amortecedor dianteiro Dashboard {{dash_runId}}\",\n  \"descricao\": \"Amortecedor dianteiro para massa operacional do dashboard\",\n  \"quantidadeEstoque\": 80,\n  \"valorUnitario\": 590.00,\n  \"estoqueMinimo\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('14 - Criar peca Amortecedor 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('dash_pecaAmortecedorId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15 - Criar peca Correia dentada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/pecas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "pecas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Kit correia dentada Dashboard {{dash_runId}}\",\n  \"descricao\": \"Kit correia dentada para massa operacional do dashboard\",\n  \"quantidadeEstoque\": 80,\n  \"valorUnitario\": 480.00,\n  \"estoqueMinimo\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('15 - Criar peca Correia dentada 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('dash_pecaCorreiaId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16 - Criar OS RECEBIDA - Ana Martins / Toyota Corolla XEi",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_ana_documento}}\",\n    \"nome\": \"Ana Martins\",\n    \"telefone\": \"11944155011\",\n    \"email\": \"ana.martins.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_ana_placa}}\",\n    \"marca\": \"Toyota\",\n    \"modelo\": \"Corolla XEi\",\n    \"ano\": 2022\n  },\n  \"servicos\": [{ \"servicoId\": {{dash_servicoRevisaoId}}, \"quantidade\": 1 }],\n  \"pecas\": [{ \"pecaId\": {{dash_pecaFiltroId}}, \"quantidade\": 1 }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 16] OS criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('dash_ana_osId', json.id);",
+                  "pm.collectionVariables.set('dash_ana_osNumero', json.numero);",
+                  "pm.test('[DASH 16] Status inicial RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "17 - Criar OS EM_DIAGNOSTICO - Bruno Teixeira / Honda Civic Touring",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_bruno_documento}}\",\n    \"nome\": \"Bruno Teixeira\",\n    \"telefone\": \"11949280890\",\n    \"email\": \"bruno.teixeira.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_bruno_placa}}\",\n    \"marca\": \"Honda\",\n    \"modelo\": \"Civic Touring\",\n    \"ano\": 2021\n  },\n  \"servicos\": [{ \"servicoId\": {{dash_servicoFreiosId}}, \"quantidade\": 1 }],\n  \"pecas\": [{ \"pecaId\": {{dash_pecaPastilhaId}}, \"quantidade\": 1 }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 17] OS criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('dash_bruno_osId', json.id);",
+                  "pm.collectionVariables.set('dash_bruno_osNumero', json.numero);",
+                  "pm.test('[DASH 17] Status inicial RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18 - Bruno Teixeira - Iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_bruno_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_bruno_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenRafael}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 18] Iniciar diagnostico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 18] Status EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "19 - Criar OS AGUARDANDO_APROVACAO - Carla Nogueira / Jeep Renegade Longitude",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_carla_documento}}\",\n    \"nome\": \"Carla Nogueira\",\n    \"telefone\": \"11990210675\",\n    \"email\": \"carla.nogueira.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_carla_placa}}\",\n    \"marca\": \"Jeep\",\n    \"modelo\": \"Renegade Longitude\",\n    \"ano\": 2020\n  },\n  \"servicos\": [{ \"servicoId\": {{dash_servicoSuspensaoId}}, \"quantidade\": 1 }],\n  \"pecas\": [{ \"pecaId\": {{dash_pecaAmortecedorId}}, \"quantidade\": 1 }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 19] OS criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('dash_carla_osId', json.id);",
+                  "pm.collectionVariables.set('dash_carla_osNumero', json.numero);",
+                  "pm.test('[DASH 19] Status inicial RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "20 - Carla Nogueira - Iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_carla_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_carla_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMarcos}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 20] Iniciar diagnostico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 20] Status EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "21 - Carla Nogueira - Gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_carla_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_carla_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 21] Orcamento 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "22 - Criar OS EM_EXECUCAO - Diego Ribeiro / Ford Ranger XLS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_diego_documento}}\",\n    \"nome\": \"Diego Ribeiro\",\n    \"telefone\": \"11969592183\",\n    \"email\": \"diego.ribeiro.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_diego_placa}}\",\n    \"marca\": \"Ford\",\n    \"modelo\": \"Ranger XLS\",\n    \"ano\": 2023\n  },\n  \"servicos\": [{ \"servicoId\": {{dash_servicoArId}}, \"quantidade\": 1 }],\n  \"pecas\": [{ \"pecaId\": {{dash_pecaFiltroId}}, \"quantidade\": 1 }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 22] OS criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('dash_diego_osId', json.id);",
+                  "pm.collectionVariables.set('dash_diego_osNumero', json.numero);",
+                  "pm.test('[DASH 22] Status inicial RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "23 - Diego Ribeiro - Iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_diego_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_diego_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenJuliana}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 23] Iniciar diagnostico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 23] Status EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "24 - Diego Ribeiro - Gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_diego_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_diego_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 24] Orcamento 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "25 - Diego Ribeiro - Aprovar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_diego_osId}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_diego_osId}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 25] Aprovar orcamento 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 25] Status EM_EXECUCAO', () => pm.expect(pm.response.json().status).to.eql('EM_EXECUCAO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "26 - Criar OS AGUARDANDO_RETIRADA - Elisa Campos / Volkswagen T-Cross Highline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_elisa_documento}}\",\n    \"nome\": \"Elisa Campos\",\n    \"telefone\": \"11911411070\",\n    \"email\": \"elisa.campos.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_elisa_placa}}\",\n    \"marca\": \"Volkswagen\",\n    \"modelo\": \"T-Cross Highline\",\n    \"ano\": 2022\n  },\n  \"servicos\": [{ \"servicoId\": {{dash_servicoOleoId}}, \"quantidade\": 1 }],\n  \"pecas\": [{ \"pecaId\": {{dash_pecaFiltroId}}, \"quantidade\": 1 }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 26] OS criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('dash_elisa_osId', json.id);",
+                  "pm.collectionVariables.set('dash_elisa_osNumero', json.numero);",
+                  "pm.test('[DASH 26] Status inicial RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "27 - Elisa Campos - Iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_elisa_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_elisa_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenCarlos}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 27] Iniciar diagnostico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 27] Status EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "28 - Elisa Campos - Gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_elisa_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_elisa_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 28] Orcamento 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "29 - Elisa Campos - Aprovar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_elisa_osId}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_elisa_osId}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 29] Aprovar orcamento 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 29] Status EM_EXECUCAO', () => pm.expect(pm.response.json().status).to.eql('EM_EXECUCAO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "30 - Elisa Campos - Finalizar servico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_elisa_osId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_elisa_osId}}",
+                "finalizar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenCarlos}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 30] Finalizar servico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 30] Status FINALIZADA', () => pm.expect(pm.response.json().status).to.eql('FINALIZADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "31 - Elisa Campos - Registrar pagamento PIX",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_elisa_osId}}/pagamento?metodoPagamento=PIX",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_elisa_osId}}",
+                "pagamento?metodoPagamento=PIX"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 31] Pagamento aprovado 200', () => {",
+                  "  if (pm.response.code !== 200) console.warn('Pagamento nao aprovado. Verifique PAGAMENTO_GATEWAY_APPROVAL_RATE=1.0 em homolog.');",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('[DASH 31] Status AGUARDANDO_RETIRADA', () => pm.expect(pm.response.json().status).to.eql('AGUARDANDO_RETIRADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "32 - Criar OS ENTREGUE - Fabio Almeida / Fiat Toro Volcano",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_fabio_documento}}\",\n    \"nome\": \"Fabio Almeida\",\n    \"telefone\": \"11978166800\",\n    \"email\": \"fabio.almeida.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_fabio_placa}}\",\n    \"marca\": \"Fiat\",\n    \"modelo\": \"Toro Volcano\",\n    \"ano\": 2021\n  },\n  \"servicos\": [{ \"servicoId\": {{dash_servicoRevisaoId}}, \"quantidade\": 1 }],\n  \"pecas\": [{ \"pecaId\": {{dash_pecaCorreiaId}}, \"quantidade\": 1 }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 32] OS criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('dash_fabio_osId', json.id);",
+                  "pm.collectionVariables.set('dash_fabio_osNumero', json.numero);",
+                  "pm.test('[DASH 32] Status inicial RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "33 - Fabio Almeida - Iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_fabio_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_fabio_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenRafael}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 33] Iniciar diagnostico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 33] Status EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "34 - Fabio Almeida - Gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_fabio_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_fabio_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 34] Orcamento 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "35 - Fabio Almeida - Aprovar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_fabio_osId}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_fabio_osId}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 35] Aprovar orcamento 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 35] Status EM_EXECUCAO', () => pm.expect(pm.response.json().status).to.eql('EM_EXECUCAO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "36 - Fabio Almeida - Finalizar servico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_fabio_osId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_fabio_osId}}",
+                "finalizar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenRafael}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 36] Finalizar servico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 36] Status FINALIZADA', () => pm.expect(pm.response.json().status).to.eql('FINALIZADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "37 - Fabio Almeida - Registrar pagamento PIX",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_fabio_osId}}/pagamento?metodoPagamento=PIX",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_fabio_osId}}",
+                "pagamento?metodoPagamento=PIX"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 37] Pagamento aprovado 200', () => {",
+                  "  if (pm.response.code !== 200) console.warn('Pagamento nao aprovado. Verifique PAGAMENTO_GATEWAY_APPROVAL_RATE=1.0 em homolog.');",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('[DASH 37] Status AGUARDANDO_RETIRADA', () => pm.expect(pm.response.json().status).to.eql('AGUARDANDO_RETIRADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "38 - Fabio Almeida - Entregar veiculo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_fabio_osId}}/entregar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_fabio_osId}}",
+                "entregar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 38] Entregar veiculo 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 38] Status ENTREGUE', () => pm.expect(pm.response.json().status).to.eql('ENTREGUE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "39 - Criar OS CANCELADA - Gisele Rocha / Chevrolet Onix Premier",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_gisele_documento}}\",\n    \"nome\": \"Gisele Rocha\",\n    \"telefone\": \"11982781172\",\n    \"email\": \"gisele.rocha.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_gisele_placa}}\",\n    \"marca\": \"Chevrolet\",\n    \"modelo\": \"Onix Premier\",\n    \"ano\": 2020\n  },\n  \"servicos\": [{ \"servicoId\": {{dash_servicoFreiosId}}, \"quantidade\": 1 }],\n  \"pecas\": [{ \"pecaId\": {{dash_pecaPastilhaId}}, \"quantidade\": 1 }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 39] OS criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('dash_gisele_osId', json.id);",
+                  "pm.collectionVariables.set('dash_gisele_osNumero', json.numero);",
+                  "pm.test('[DASH 39] Status inicial RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "40 - Gisele Rocha - Iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_gisele_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_gisele_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenMarcos}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 40] Iniciar diagnostico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 40] Status EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "41 - Gisele Rocha - Gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_gisele_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_gisele_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 41] Orcamento 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "42 - Gisele Rocha - Rejeitar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_gisele_osId}}/rejeitar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_gisele_osId}}",
+                "rejeitar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 42] Rejeitar orcamento 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 42] Status CANCELADA', () => pm.expect(pm.response.json().status).to.eql('CANCELADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "43 - Criar OS FINALIZADA - Henrique Moura / Hyundai HB20 Comfort",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_henrique_documento}}\",\n    \"nome\": \"Henrique Moura\",\n    \"telefone\": \"11919204977\",\n    \"email\": \"henrique.moura.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_henrique_placa}}\",\n    \"marca\": \"Hyundai\",\n    \"modelo\": \"HB20 Comfort\",\n    \"ano\": 2024\n  },\n  \"servicos\": [{ \"servicoId\": {{dash_servicoArId}}, \"quantidade\": 1 }],\n  \"pecas\": [{ \"pecaId\": {{dash_pecaFiltroId}}, \"quantidade\": 1 }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 43] OS criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('dash_henrique_osId', json.id);",
+                  "pm.collectionVariables.set('dash_henrique_osNumero', json.numero);",
+                  "pm.test('[DASH 43] Status inicial RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "44 - Henrique Moura - Iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_henrique_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_henrique_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenFernanda}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 44] Iniciar diagnostico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 44] Status EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "45 - Henrique Moura - Gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_henrique_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_henrique_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 45] Orcamento 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "46 - Henrique Moura - Aprovar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_henrique_osId}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_henrique_osId}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 46] Aprovar orcamento 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 46] Status EM_EXECUCAO', () => pm.expect(pm.response.json().status).to.eql('EM_EXECUCAO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "47 - Henrique Moura - Finalizar servico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_henrique_osId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_henrique_osId}}",
+                "finalizar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenFernanda}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 47] Finalizar servico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 47] Status FINALIZADA', () => pm.expect(pm.response.json().status).to.eql('FINALIZADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "48 - Criar OS EM_EXECUCAO - Isabela Duarte / Nissan Kicks Advance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_isabela_documento}}\",\n    \"nome\": \"Isabela Duarte\",\n    \"telefone\": \"11929088572\",\n    \"email\": \"isabela.duarte.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_isabela_placa}}\",\n    \"marca\": \"Nissan\",\n    \"modelo\": \"Kicks Advance\",\n    \"ano\": 2022\n  },\n  \"servicos\": [{ \"servicoId\": {{dash_servicoRevisaoId}}, \"quantidade\": 1 }],\n  \"pecas\": [{ \"pecaId\": {{dash_pecaFiltroId}}, \"quantidade\": 1 }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 48] OS criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('dash_isabela_osId', json.id);",
+                  "pm.collectionVariables.set('dash_isabela_osNumero', json.numero);",
+                  "pm.test('[DASH 48] Status inicial RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "49 - Isabela Duarte - Iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_isabela_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_isabela_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenCarlos}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 49] Iniciar diagnostico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 49] Status EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "50 - Isabela Duarte - Gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_isabela_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_isabela_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 50] Orcamento 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "51 - Isabela Duarte - Aprovar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_isabela_osId}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_isabela_osId}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 51] Aprovar orcamento 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 51] Status EM_EXECUCAO', () => pm.expect(pm.response.json().status).to.eql('EM_EXECUCAO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "52 - Criar OS ENTREGUE - Joao Pereira / Renault Kwid Zen",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{dash_joao_documento}}\",\n    \"nome\": \"Joao Pereira\",\n    \"telefone\": \"11940863883\",\n    \"email\": \"joao.pereira.{{dash_runId}}@dgcar.local\",\n    \"cep\": \"01310100\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{dash_joao_placa}}\",\n    \"marca\": \"Renault\",\n    \"modelo\": \"Kwid Zen\",\n    \"ano\": 2021\n  },\n  \"servicos\": [{ \"servicoId\": {{dash_servicoOleoId}}, \"quantidade\": 1 }],\n  \"pecas\": [{ \"pecaId\": {{dash_pecaFiltroId}}, \"quantidade\": 1 }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 52] OS criada 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('dash_joao_osId', json.id);",
+                  "pm.collectionVariables.set('dash_joao_osNumero', json.numero);",
+                  "pm.test('[DASH 52] Status inicial RECEBIDA', () => pm.expect(json.status).to.eql('RECEBIDA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "53 - Joao Pereira - Iniciar diagnostico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_joao_osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_joao_osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenJuliana}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 53] Iniciar diagnostico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 53] Status EM_DIAGNOSTICO', () => pm.expect(pm.response.json().status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "54 - Joao Pereira - Gerar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_joao_osId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_joao_osId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 54] Orcamento 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "55 - Joao Pereira - Aprovar orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_joao_osId}}/aprovar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_joao_osId}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 55] Aprovar orcamento 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 55] Status EM_EXECUCAO', () => pm.expect(pm.response.json().status).to.eql('EM_EXECUCAO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "56 - Joao Pereira - Finalizar servico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_joao_osId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_joao_osId}}",
+                "finalizar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenJuliana}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 56] Finalizar servico 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 56] Status FINALIZADA', () => pm.expect(pm.response.json().status).to.eql('FINALIZADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "57 - Joao Pereira - Registrar pagamento PIX",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_joao_osId}}/pagamento?metodoPagamento=PIX",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_joao_osId}}",
+                "pagamento?metodoPagamento=PIX"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 57] Pagamento aprovado 200', () => {",
+                  "  if (pm.response.code !== 200) console.warn('Pagamento nao aprovado. Verifique PAGAMENTO_GATEWAY_APPROVAL_RATE=1.0 em homolog.');",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('[DASH 57] Status AGUARDANDO_RETIRADA', () => pm.expect(pm.response.json().status).to.eql('AGUARDANDO_RETIRADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "58 - Joao Pereira - Entregar veiculo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{dash_joao_osId}}/entregar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{dash_joao_osId}}",
+                "entregar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 58] Entregar veiculo 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[DASH 58] Status ENTREGUE', () => pm.expect(pm.response.json().status).to.eql('ENTREGUE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "59 - Validar fila operacional e orientar New Relic",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/fila",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "fila"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{dash_tokenAtendente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[DASH 59] Fila operacional 200', () => pm.response.to.have.status(200));",
+                  "var body = pm.response.json();",
+                  "pm.test('[DASH 59] Resposta e array', () => pm.expect(body).to.be.an('array'));",
+                  "console.log('[DASHBOARD OS REALISTA] Massa criada com clientes, veiculos e mecanicos reais. Aguarde 1 a 2 minutos para os snapshots OficinaOsOperationalSnapshot aparecerem no New Relic.');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [

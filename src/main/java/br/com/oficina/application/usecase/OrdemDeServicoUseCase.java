@@ -126,7 +126,7 @@ public class OrdemDeServicoUseCase implements
             os = osRepository.salvar(os);
 
             execucaoRepository.salvar(Execucao.criar(os.getId()));
-            metricsPort.registrarOsCriada("simples", os.getStatus());
+            metricsPort.registrarOsCriada("simples", os.getStatus(), os.getNumero());
             notificarStatus(os);
             return toResult(os);
         } catch (RuntimeException ex) {
@@ -505,7 +505,8 @@ public class OrdemDeServicoUseCase implements
                 statusAnterior,
                 os.getStatus(),
                 tempoDesdeCriacao(os),
-                mecanicoNome);
+                mecanicoNome,
+                os.getNumero());
     }
 
     private Duration tempoDesdeCriacao(OrdemDeServico os) {
