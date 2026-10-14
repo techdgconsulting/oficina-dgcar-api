@@ -198,10 +198,15 @@ jobs:
 
           NEW_RELIC_APP_NAME="${NEW_RELIC_APP_NAME:-oficina-dgcar-api-$TARGET_ENVIRONMENT}"
           NEW_RELIC_ENVIRONMENT="${NEW_RELIC_ENVIRONMENT:-$TARGET_ENVIRONMENT}"
+          OFICINA_DASHBOARD_MASSA_HISTORICA_ENABLED=false
+          if [ "$TARGET_ENVIRONMENT" = "homolog" ]; then
+            OFICINA_DASHBOARD_MASSA_HISTORICA_ENABLED=true
+          fi
 
           kubectl create configmap oficina-api-config -n "$K8S_NAMESPACE" \
             --from-literal=SPRING_DATASOURCE_URL="$SPRING_DATASOURCE_URL" \
             --from-literal=OFICINA_PUBLIC_BASE_URL="$OFICINA_PUBLIC_BASE_URL" \
+            --from-literal=OFICINA_DASHBOARD_MASSA_HISTORICA_ENABLED="$OFICINA_DASHBOARD_MASSA_HISTORICA_ENABLED" \
             --from-literal=OFICINA_EMAIL_ENABLED="$OFICINA_EMAIL_ENABLED" \
             --from-literal=OFICINA_EMAIL_MODE="$OFICINA_EMAIL_MODE" \
             --from-literal=OFICINA_EMAIL_REMETENTE="$OFICINA_EMAIL_REMETENTE" \

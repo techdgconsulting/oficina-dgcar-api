@@ -58,6 +58,9 @@ client:
     audience: ${CLIENT_JWT_AUDIENCE:oficina-dgcar-api}
 
 oficina:
+  dashboard:
+    massa-historica:
+      enabled: ${OFICINA_DASHBOARD_MASSA_HISTORICA_ENABLED:false}
   notificacao:
     base-url: ${OFICINA_PUBLIC_BASE_URL:http://localhost:8080}
     orcamento:
