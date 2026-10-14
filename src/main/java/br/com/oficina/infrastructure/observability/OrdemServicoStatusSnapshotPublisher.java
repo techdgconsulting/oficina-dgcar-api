@@ -4,6 +4,11 @@ import br.com.oficina.application.port.out.ClienteRepositoryPort;
 import br.com.oficina.application.port.out.ExecucaoRepositoryPort;
 import br.com.oficina.application.port.out.EntregaRepositoryPort;
 import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
+import br.com.oficina.application.port.out.OrcamentoRepositoryPort;
+import br.com.oficina.application.port.out.PagamentoRepositoryPort;
+import br.com.oficina.domain.model.Execucao;
+import br.com.oficina.domain.model.Orcamento;
+import br.com.oficina.domain.valueobject.StatusPagamento;
 import br.com.oficina.domain.model.Entrega;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
 import br.com.oficina.application.port.out.VeiculoRepositoryPort;
@@ -27,6 +32,8 @@ public class OrdemServicoStatusSnapshotPublisher {
     private final ExecucaoRepositoryPort execucaoRepository;
     private final EntregaRepositoryPort entregaRepository;
     private final OrdemServicoMetricsPort metricsPort;
+    private final OrcamentoRepositoryPort orcamentoRepository;
+    private final PagamentoRepositoryPort pagamentoRepository;
 
     @Scheduled(
             initialDelayString = "${observability.business-snapshot-initial-delay-ms:30000}",
@@ -68,13 +75,37 @@ public class OrdemServicoStatusSnapshotPublisher {
     private void publicarOrdemOperacional(OrdemDeServico os) {
         var cliente = clienteRepository.buscarPorId(os.getClienteId()).orElse(os.getCliente());
         var veiculo = veiculoRepository.buscarPorId(os.getVeiculoId()).orElse(os.getVeiculo());
-        var mecanicoNome = execucaoRepository.buscarPorOrdemDeServico(os.getId())
-                .map(execucao -> valor(execucao.getMecanicoNome()))
+        var execucao = execucaoRepository.buscarPorOrdemDeServico(os.getId());
+        var mecanicoNome = execucao
+                .map(e -> valor(e.getMecanicoNome()))
                 .orElse("NAO_ATRIBUIDO");
 
         var dataEntrega = entregaRepository.buscarPorOrdemDeServico(os.getId())
                 .map(Entrega::getDataEntrega).orElse(null);
         metricsPort.registrarSnapshotOperacional(os, cliente, veiculo, mecanicoNome, dataEntrega);
+        execucao.ifPresent(e -> publicarTemposExecucao(os, e));
+        pagamentoRepository.buscarPorOrdemDeServico(os.getId())
+                .filter(p -> p.getStatus() == StatusPagamento.APROVADO)
+                .ifPresent(p -> metricsPort.registrarTempoStatusPersistido(os.getNumero(), StatusOS.FINALIZADA,
+                        os.getDataFinalizacao(), p.getDataPagamento()));
+    }
+
+    private void publicarTemposExecucao(OrdemDeServico os, Execucao execucao) {
+        var diagnostico = execucao.getDiagnostico();
+        if (diagnostico != null && diagnostico.getDataDiagnostico() != null) {
+            var inicio = diagnostico.getDataDiagnostico();
+            orcamentoRepository.listarPorOrdemDeServico(os.getId()).stream()
+                    .map(Orcamento::getDataCriacao)
+                    .filter(data -> data != null && !data.isBefore(inicio))
+                    .min(java.time.LocalDateTime::compareTo)
+                    .ifPresent(fim -> metricsPort.registrarTempoStatusPersistido(
+                            os.getNumero(), StatusOS.EM_DIAGNOSTICO, inicio, fim));
+        }
+        var periodo = execucao.getPeriodoExecucao();
+        if (periodo != null) {
+            metricsPort.registrarTempoStatusPersistido(os.getNumero(), StatusOS.EM_EXECUCAO,
+                    periodo.getInicio(), periodo.getFim());
+        }
     }
 
     private String valor(String valor) {

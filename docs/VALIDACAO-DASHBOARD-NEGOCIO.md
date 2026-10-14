@@ -5,7 +5,7 @@
 - Aberta: ultimo status diferente de ENTREGUE e CANCELADA; inclui servicos finalizados ainda na oficina.
 - Cabecalho: somente o card Total de OS em aberto, ao lado de Status das OS. Os cards Em execucao, Aguardando aprovacao e Concluidas hoje foram removidos.
 - Volume diario: OS distintas pela data real de criacao, nos ultimos 14 dias de calendario. Usa snapshots do banco, incluindo OS criadas antes da instrumentacao. Os 30 minutos da query sao a janela de recebimento dos snapshots, nao a data de criacao.
-- Tempo por status: intervalo entre entrada e saida do status. Finalizacao representa a permanencia em FINALIZADA ate o pagamento/aguardo de retirada. Apenas eventos metrics_version=2 entram na media; duracoes antigas incorretas ficam excluidas.
+- Tempo por status: intervalos persistidos, amostrados uma unica vez por OS/status/inicio. Diagnostico usa data do diagnostico ate o primeiro orcamento posterior; Execucao usa inicio/fim do periodo de execucao; Finalizacao usa data finalizacao ate pagamento aprovado. A data de saida da etapa precisa pertencer ao periodo consultado. Repeticoes do agendador nao mudam o peso de uma OS na media.
 - OS antigas sem horario confiavel de entrada no status passam a registrar tempos apos a primeira transicao. Nao ha estimativa retroativa.
 - Data de entrega: campo real da entidade Entrega, convertido do fuso do servidor para America/Sao_Paulo. Fica vazia nas OS nao entregues.
 - A tabela inclui OS ativas e entregues; canceladas ficam fora. A consulta considera o ultimo estado por OS.
@@ -31,3 +31,11 @@ Executar a pasta **Popular Dashboard Historico - Ciclo de 7 dias**. A pasta faz 
 A rota `POST /api/homologacao/dashboard/massa-historica` aceita somente GESTOR e depende de `OFICINA_DASHBOARD_MASSA_HISTORICA_ENABLED=true`. O deploy habilita a opcao somente em homolog; producao e execucoes locais ficam desabilitadas por padrao. No Docker Compose local a opcao pode ser configurada explicitamente.
 
 A massa e identificada por prefixo OS-HIST, cliente demonstrativo e placas HIS. Reexecutar no mesmo dia preserva IDs e datas. Um conflito com cliente, veiculo ou OS de outra origem interrompe a transacao. Pagamentos e notificacoes externas nao sao acionados. O agendador publica os snapshots apos o commit da massa.
+
+## Conferencia dos tres indicadores corrigidos
+
+- A tabela de OS usa agregacao por numero e preserva suas colunas de negocio, sem retornar timestamp tecnico.
+- Produtividade conta OS finalizadas por mecanico e pela data real de finalizacao, incluindo FINALIZADA, AGUARDANDO_RETIRADA e ENTREGUE. Uma OS conta somente uma vez; mudancas de status nao sao produtividade.
+- A massa historica tem, por OS, diagnostico de 60 minutos, execucao de 8520 minutos e finalizacao de 60 minutos. O ciclo abertura/entrega e de sete dias e nao representa sete dias em cada status.
+- O seletor de tempo aplica os limites de saida do status/finalizacao. Em uma janela de um dia, diagnosticos historicos encerrados ha mais de uma semana ficam fora; em 14 dias, entram.
+- O verificador de deploy compara a produtividade de 1 e 14 dias com a API, compara as medias com intervalos unicos e verifica a ausencia de timestamp na tabela. O quociente count/rate calcula a largura da janela NRQL; aggregationendtime fornece seu limite superior. A verificacao testa ambos contra limites explicitos antes de aplicar o dashboard.

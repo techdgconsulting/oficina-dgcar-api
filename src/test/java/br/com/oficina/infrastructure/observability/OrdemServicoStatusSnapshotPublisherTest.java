@@ -4,6 +4,8 @@ import br.com.oficina.application.port.out.ClienteRepositoryPort;
 import br.com.oficina.application.port.out.ExecucaoRepositoryPort;
 import br.com.oficina.application.port.out.EntregaRepositoryPort;
 import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
+import br.com.oficina.application.port.out.OrcamentoRepositoryPort;
+import br.com.oficina.application.port.out.PagamentoRepositoryPort;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
 import br.com.oficina.application.port.out.VeiculoRepositoryPort;
 import br.com.oficina.domain.model.Cliente;
@@ -32,11 +34,13 @@ class OrdemServicoStatusSnapshotPublisherTest {
     private final ExecucaoRepositoryPort execucaoRepository = mock(ExecucaoRepositoryPort.class);
     private final EntregaRepositoryPort entregaRepository = mock(EntregaRepositoryPort.class);
     private final OrdemServicoMetricsPort metricsPort = mock(OrdemServicoMetricsPort.class);
+    private final OrcamentoRepositoryPort orcamentoRepository = mock(OrcamentoRepositoryPort.class);
+    private final PagamentoRepositoryPort pagamentoRepository = mock(PagamentoRepositoryPort.class);
     private final OrdemServicoStatusSnapshotPublisher publisher = new OrdemServicoStatusSnapshotPublisher(
             ordemRepository,
             clienteRepository,
             veiculoRepository,
-            execucaoRepository, entregaRepository, metricsPort);
+            execucaoRepository, entregaRepository, metricsPort, orcamentoRepository, pagamentoRepository);
 
     @Test
     void publicaSnapshotDeStatusEOrdensOperacionais() {

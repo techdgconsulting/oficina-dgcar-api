@@ -56,6 +56,10 @@ public interface OrdemServicoMetricsPort {
     default void registrarFalhaProcessamento(String fluxo, Throwable erro) {
     }
 
+    default void registrarTempoStatusPersistido(String numeroOs, StatusOS status,
+                                               LocalDateTime inicio, LocalDateTime fim) {
+    }
+
     default void registrarFalhaNotificacao(String tipo, StatusOS status, Throwable erro) {
     }
 
