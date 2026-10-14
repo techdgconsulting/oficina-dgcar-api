@@ -5,6 +5,7 @@ import br.com.oficina.domain.model.OrdemDeServico;
 import br.com.oficina.domain.model.Veiculo;
 import br.com.oficina.domain.valueobject.StatusOS;
 import java.time.Duration;
+import java.time.LocalDateTime;
 
 public interface OrdemServicoMetricsPort {
 
@@ -48,7 +49,8 @@ public interface OrdemServicoMetricsPort {
             OrdemDeServico os,
             Cliente cliente,
             Veiculo veiculo,
-            String mecanicoNome) {
+            String mecanicoNome,
+            LocalDateTime dataEntrega) {
     }
 
     default void registrarFalhaProcessamento(String fluxo, Throwable erro) {

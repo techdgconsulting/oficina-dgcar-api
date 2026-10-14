@@ -2,14 +2,14 @@ package br.com.oficina.infrastructure.observability;
 
 import br.com.oficina.application.port.out.ClienteRepositoryPort;
 import br.com.oficina.application.port.out.ExecucaoRepositoryPort;
+import br.com.oficina.application.port.out.EntregaRepositoryPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
+import br.com.oficina.domain.model.Entrega;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
 import br.com.oficina.application.port.out.VeiculoRepositoryPort;
 import br.com.oficina.domain.model.OrdemDeServico;
 import br.com.oficina.domain.valueobject.StatusOS;
 import com.newrelic.api.agent.NewRelic;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +25,8 @@ public class OrdemServicoStatusSnapshotPublisher {
     private final ClienteRepositoryPort clienteRepository;
     private final VeiculoRepositoryPort veiculoRepository;
     private final ExecucaoRepositoryPort execucaoRepository;
+    private final EntregaRepositoryPort entregaRepository;
+    private final OrdemServicoMetricsPort metricsPort;
 
     @Scheduled(
             initialDelayString = "${observability.business-snapshot-initial-delay-ms:30000}",
@@ -70,25 +72,9 @@ public class OrdemServicoStatusSnapshotPublisher {
                 .map(execucao -> valor(execucao.getMecanicoNome()))
                 .orElse("NAO_ATRIBUIDO");
 
-        Map<String, Object> atributos = new HashMap<>();
-        atributos.put("numero_os", valor(os.getNumero()));
-        atributos.put("status", os.getStatus().name());
-        atributos.put("cliente_nome", cliente != null ? valor(cliente.getNome()) : "NAO_INFORMADO");
-        atributos.put("veiculo", veiculo != null ? valor(veiculo.getMarca() + " " + veiculo.getModelo()) : "NAO_INFORMADO");
-        atributos.put("placa", veiculo != null && veiculo.getPlaca() != null ? veiculo.getPlaca().getValor() : "NAO_INFORMADO");
-        atributos.put("mecanico_nome", mecanicoNome);
-        atributos.put("atendente_nome", valor(os.getAtendenteNome()));
-        atributos.put("idade_minutos", idadeMinutos(os));
-        atributos.put("valor_total", os.calcularValorTotal().doubleValue());
-        NewRelic.getAgent().getInsights().recordCustomEvent("OficinaOsOperationalSnapshot", atributos);
-    }
-
-    private long idadeMinutos(OrdemDeServico os) {
-        if (os.getDataCriacao() == null) {
-            return 0;
-        }
-        var fim = os.getDataFinalizacao() != null ? os.getDataFinalizacao() : LocalDateTime.now();
-        return Math.max(Duration.between(os.getDataCriacao(), fim).toMinutes(), 0);
+        var dataEntrega = entregaRepository.buscarPorOrdemDeServico(os.getId())
+                .map(Entrega::getDataEntrega).orElse(null);
+        metricsPort.registrarSnapshotOperacional(os, cliente, veiculo, mecanicoNome, dataEntrega);
     }
 
     private String valor(String valor) {

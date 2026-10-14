@@ -17,6 +17,7 @@ public class OrdemDeServicoPersistenceMapper {
             os.getStatus(),
             os.getDataCriacao(),
             os.getDataFinalizacao(),
+            os.getDataEntradaStatus(),
             os.getAtendenteNome(),
             os.getClienteId(),
             os.getVeiculoId(),
@@ -33,6 +34,7 @@ public class OrdemDeServicoPersistenceMapper {
             .status(entity.getStatus())
             .dataCriacao(entity.getDataCriacao())
             .dataFinalizacao(entity.getDataFinalizacao())
+            .dataEntradaStatus(entity.getDataEntradaStatus())
             .atendenteNome(entity.getAtendenteNome())
             .clienteId(entity.getClienteId())
             .veiculoId(entity.getVeiculoId())
