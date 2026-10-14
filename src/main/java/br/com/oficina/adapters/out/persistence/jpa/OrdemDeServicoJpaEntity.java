@@ -44,6 +44,9 @@ public class OrdemDeServicoJpaEntity {
     @Column(name = "data_finalizacao")
     private LocalDateTime dataFinalizacao;
 
+    @Column(name = "data_entrada_status")
+    private LocalDateTime dataEntradaStatus;
+
     @Column(name = "atendente_nome", length = 150)
     private String atendenteNome;
 

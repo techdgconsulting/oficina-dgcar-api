@@ -80,6 +80,7 @@ class OrdemDeServicoUseCaseTest {
     @Mock private PagamentoGatewayPort pagamentoGateway;
     @Mock private NotificarStatusOrdemServicoInputPort notificarStatusOrdemServicoInputPort;
 
+    @Mock private OrdemServicoMetricsPort metricsPort;
     private OrdemDeServicoUseCase useCase;
     private Cliente cliente;
     private Veiculo veiculo;
@@ -99,7 +100,7 @@ class OrdemDeServicoUseCaseTest {
                 encerramentoRepository,
                 pagamentoGateway,
                 notificarStatusOrdemServicoInputPort,
-                OrdemServicoMetricsPort.NOOP);
+                metricsPort);
 
         cliente = Cliente.builder()
                 .id(1L)
@@ -228,6 +229,55 @@ class OrdemDeServicoUseCaseTest {
 
         assertEquals("EM_DIAGNOSTICO", resp.status());
         verify(execucaoRepository).salvar(execucao);
+    }
+
+    @Test
+    void medeApenasTempoDoStatusAnteriorENaoIdadeDaOs() {
+        var os = osComItem();
+        org.springframework.test.util.ReflectionTestUtils.setField(os, "dataCriacao", LocalDateTime.now().minusDays(2));
+        org.springframework.test.util.ReflectionTestUtils.setField(os, "dataEntradaStatus", LocalDateTime.now().minusMinutes(5));
+        when(osRepository.buscarPorId(1L)).thenReturn(Optional.of(os));
+        when(execucaoRepository.buscarPorOrdemDeServico(1L)).thenReturn(Optional.of(Execucao.criar(1L)));
+
+        useCase.execute(new IniciarDiagnosticoCommand(1L, "Carlos Silva"));
+
+        verify(metricsPort).registrarMudancaStatus(
+                org.mockito.ArgumentMatchers.eq("iniciar_diagnostico"),
+                org.mockito.ArgumentMatchers.eq(StatusOS.RECEBIDA),
+                org.mockito.ArgumentMatchers.eq(StatusOS.EM_DIAGNOSTICO),
+                org.mockito.ArgumentMatchers.argThat(d -> d.toSeconds() >= 299 && d.toSeconds() <= 301),
+                org.mockito.ArgumentMatchers.eq("Carlos Silva"), org.mockito.ArgumentMatchers.eq(os.getNumero()));
+        assertTrue(os.getDataEntradaStatus().isAfter(LocalDateTime.now().minusSeconds(5)));
+    }
+
+    @Test
+    void criaExecucaoAusenteComMecanicoAntesDeAvancarDiagnostico() {
+        var os = osComItem();
+        org.springframework.test.util.ReflectionTestUtils.setField(os, "dataEntradaStatus", null);
+        when(osRepository.buscarPorId(1L)).thenReturn(Optional.of(os));
+
+        useCase.execute(new IniciarDiagnosticoCommand(1L, "Carlos Silva"));
+
+        var execucao = org.mockito.ArgumentCaptor.forClass(Execucao.class);
+        verify(execucaoRepository).salvar(execucao.capture());
+        assertEquals("Carlos Silva", execucao.getValue().getMecanicoNome());
+        assertEquals(StatusOS.EM_DIAGNOSTICO, os.getStatus());
+        verify(metricsPort).registrarMudancaStatus(
+                org.mockito.ArgumentMatchers.eq("iniciar_diagnostico"),
+                org.mockito.ArgumentMatchers.eq(StatusOS.RECEBIDA),
+                org.mockito.ArgumentMatchers.eq(StatusOS.EM_DIAGNOSTICO),
+                org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(os.getNumero()));
+    }
+
+    @Test
+    void naoAvancaDiagnosticoSemMecanicoValido() {
+        var os = osComItem();
+        when(osRepository.buscarPorId(1L)).thenReturn(Optional.of(os));
+        assertThrows(IllegalArgumentException.class,
+                () -> useCase.execute(new IniciarDiagnosticoCommand(1L, " ")));
+        assertEquals(StatusOS.RECEBIDA, os.getStatus());
+        verify(osRepository, never()).salvar(any());
     }
 
     @Test

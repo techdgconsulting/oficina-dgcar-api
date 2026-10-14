@@ -39,6 +39,8 @@ class OrdemDeServicoPersistenceTransactionTest {
         entity.setNumero("OS-SNAPSHOT-REGRESSION");
         entity.setStatus(StatusOS.EM_EXECUCAO);
         entity.setDataCriacao(LocalDateTime.now());
+        var entradaStatus = LocalDateTime.of(2026, 10, 14, 10, 30);
+        entity.setDataEntradaStatus(entradaStatus);
         entity.setClienteId(1L);
         entity.setVeiculoId(2L);
         entity.adicionarItem(new ItemOSJpaEntity(null, TipoItem.SERVICO, "Revisao", 2,
@@ -47,6 +49,8 @@ class OrdemDeServicoPersistenceTransactionTest {
 
         try {
             verificarItens(adapter.listarTodas().get(0));
+            assertThat(adapter.buscarPorId(saved.getId()).orElseThrow().getDataEntradaStatus())
+                    .isEqualTo(entradaStatus);
             verificarItens(adapter.listarPorStatus(StatusOS.EM_EXECUCAO).get(0));
             verificarItens(adapter.buscarPorId(saved.getId()).orElseThrow());
             verificarItens(adapter.buscarPorNumero(saved.getNumero()).orElseThrow());

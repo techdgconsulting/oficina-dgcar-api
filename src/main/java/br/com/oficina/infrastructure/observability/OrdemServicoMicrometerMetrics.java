@@ -11,16 +11,26 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 
 @Component
 @RequiredArgsConstructor
 public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
 
     private final MeterRegistry meterRegistry;
+
+    @Value("${NEW_RELIC_APP_NAME:oficina-dgcar-api-local}")
+    private String appName = "oficina-dgcar-api-local";
+
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("America/Sao_Paulo");
 
     @Override
     public void registrarOsCriada(String origem, StatusOS status, String numeroOs) {
@@ -81,7 +91,8 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
             OrdemDeServico os,
             Cliente cliente,
             Veiculo veiculo,
-            String mecanicoNome) {
+            String mecanicoNome,
+            LocalDateTime dataEntrega) {
         Map<String, Object> atributos = new HashMap<>();
         atributos.put("numero_os", valor(os.getNumero()));
         atributos.put("status", status(os.getStatus()));
@@ -92,6 +103,19 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
         atributos.put("atendente_nome", valor(os.getAtendenteNome()));
         atributos.put("idade_minutos", idadeMinutos(os));
         atributos.put("valor_total", os.calcularValorTotal().doubleValue());
+        atributos.put("app_name", appName);
+        atributos.put("snapshot_version", 2);
+        if (os.getDataCriacao() != null) {
+            var dataCriacao = dataNegocio(os.getDataCriacao());
+            atributos.put("data_criacao_dia", dataCriacao.toLocalDate().toString());
+            atributos.put("dias_desde_criacao", ChronoUnit.DAYS.between(
+                    dataCriacao.toLocalDate(), LocalDate.now(BUSINESS_ZONE)));
+        }
+        atributos.put("finalizada_hoje", os.getDataFinalizacao() != null
+                && dataNegocio(os.getDataFinalizacao()).toLocalDate().equals(LocalDate.now(BUSINESS_ZONE)));
+        // O valor vazio tambem precisa ser publicado, para latest() nao reutilizar dados antigos.
+        atributos.put("data_entrega", os.getStatus() == StatusOS.ENTREGUE && dataEntrega != null
+                ? dataNegocio(dataEntrega).format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")) : "");
         NewRelic.getAgent().getInsights().recordCustomEvent("OficinaOsOperationalSnapshot", atributos);
     }
 
@@ -139,7 +163,13 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
     private void registrarEventoNewRelic(String evento, Map<String, Object> atributos) {
         Map<String, Object> eventoAtributos = new HashMap<>(atributos);
         eventoAtributos.put("evento", evento);
+        eventoAtributos.put("app_name", appName);
+        eventoAtributos.put("metrics_version", 2);
         NewRelic.getAgent().getInsights().recordCustomEvent("OficinaOsEvent", eventoAtributos);
+    }
+
+    private static LocalDateTime dataNegocio(LocalDateTime data) {
+        return data.atZone(ZoneId.systemDefault()).withZoneSameInstant(BUSINESS_ZONE).toLocalDateTime();
     }
 
     private static long idadeMinutos(OrdemDeServico os) {

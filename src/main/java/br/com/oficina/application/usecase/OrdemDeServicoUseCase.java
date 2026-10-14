@@ -127,7 +127,7 @@ public class OrdemDeServicoUseCase implements
 
             execucaoRepository.salvar(Execucao.criar(os.getId()));
             metricsPort.registrarOsCriada("simples", os.getStatus(), os.getNumero());
-            metricsPort.registrarSnapshotOperacional(os, cliente, veiculo, null);
+            metricsPort.registrarSnapshotOperacional(os, cliente, veiculo, null, null);
             notificarStatus(os);
             return toResult(os);
         } catch (RuntimeException ex) {
@@ -177,15 +177,15 @@ public class OrdemDeServicoUseCase implements
         try {
             var os = findById(command.ordemServicoId());
             var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
+            var execucao = execucaoRepository.buscarPorOrdemDeServico(command.ordemServicoId())
+                    .orElseGet(() -> Execucao.criar(os.getId()));
+            execucao.iniciarDiagnostico(command.mecanicoNome());
             os.avancarParaDiagnostico();
             osRepository.salvar(os);
+            execucaoRepository.salvar(execucao);
 
-            execucaoRepository.buscarPorOrdemDeServico(command.ordemServicoId()).ifPresent(exec -> {
-                exec.iniciarDiagnostico(command.mecanicoNome());
-                execucaoRepository.salvar(exec);
-            });
-
-            registrarMudancaStatus("iniciar_diagnostico", os, statusAnterior);
+            registrarMudancaStatus("iniciar_diagnostico", os, statusAnterior, tempoNoStatusAnterior);
             notificarStatus(os);
             return toResult(os);
         } catch (RuntimeException ex) {
@@ -199,6 +199,7 @@ public class OrdemDeServicoUseCase implements
         try {
             var os = findById(command.ordemServicoId());
             var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
             if (os.getItens().isEmpty()) {
                 throw new NegocioException("OS nao tem itens para gerar orcamento");
             }
@@ -216,7 +217,7 @@ public class OrdemDeServicoUseCase implements
             os.aguardarAprovacao();
             osRepository.salvar(os);
 
-            registrarMudancaStatus("gerar_orcamento", os, statusAnterior);
+            registrarMudancaStatus("gerar_orcamento", os, statusAnterior, tempoNoStatusAnterior);
             notificarStatus(os);
             return toOrcamentoResult(orcamento);
         } catch (RuntimeException ex) {
@@ -230,6 +231,7 @@ public class OrdemDeServicoUseCase implements
         try {
             var os = findById(command.ordemServicoId());
             var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
             var orcamento = orcamentoRepository.buscarAtivoByOrdemDeServico(command.ordemServicoId())
                     .orElseThrow(() -> new NegocioException("Nenhum orcamento ativo encontrado para esta OS"));
 
@@ -251,7 +253,7 @@ public class OrdemDeServicoUseCase implements
                 }
             });
 
-            registrarMudancaStatus("aprovar_orcamento", os, statusAnterior);
+            registrarMudancaStatus("aprovar_orcamento", os, statusAnterior, tempoNoStatusAnterior);
             notificarStatus(os);
             return toResult(os);
         } catch (RuntimeException ex) {
@@ -265,6 +267,7 @@ public class OrdemDeServicoUseCase implements
         try {
             var os = findById(command.ordemServicoId());
             var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
             var orcamento = orcamentoRepository.buscarAtivoByOrdemDeServico(command.ordemServicoId())
                     .orElseThrow(() -> new NegocioException("Nenhum orcamento ativo para rejeitar"));
 
@@ -274,7 +277,7 @@ public class OrdemDeServicoUseCase implements
             os.cancelar();
             osRepository.salvar(os);
 
-            registrarMudancaStatus("rejeitar_orcamento", os, statusAnterior);
+            registrarMudancaStatus("rejeitar_orcamento", os, statusAnterior, tempoNoStatusAnterior);
             notificarStatus(os);
             return toResult(os);
         } catch (RuntimeException ex) {
@@ -288,6 +291,7 @@ public class OrdemDeServicoUseCase implements
         try {
             var os = findById(command.ordemServicoId());
             var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
             os.finalizar();
             osRepository.salvar(os);
 
@@ -299,7 +303,7 @@ public class OrdemDeServicoUseCase implements
                 execucaoRepository.salvar(exec);
             });
 
-            registrarMudancaStatus("finalizar_servico", os, statusAnterior);
+            registrarMudancaStatus("finalizar_servico", os, statusAnterior, tempoNoStatusAnterior);
             notificarStatus(os);
             return toResult(os);
         } catch (RuntimeException ex) {
@@ -313,6 +317,7 @@ public class OrdemDeServicoUseCase implements
         try {
             var os = findById(command.ordemServicoId());
             var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
             if (os.getStatus() != StatusOS.FINALIZADA) {
                 throw new NegocioException("OS precisa estar FINALIZADA para registrar pagamento");
             }
@@ -341,7 +346,7 @@ public class OrdemDeServicoUseCase implements
             os.aguardarRetirada();
             osRepository.salvar(os);
 
-            registrarMudancaStatus("registrar_pagamento", os, statusAnterior);
+            registrarMudancaStatus("registrar_pagamento", os, statusAnterior, tempoNoStatusAnterior);
             notificarStatus(os);
             return toResult(os);
         } catch (RuntimeException ex) {
@@ -356,6 +361,7 @@ public class OrdemDeServicoUseCase implements
         try {
             var os = findById(command.ordemServicoId());
             var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
             if (os.getStatus() != StatusOS.AGUARDANDO_RETIRADA) {
                 throw new IllegalStateException("OS precisa estar AGUARDANDO_RETIRADA para entregar o veiculo");
             }
@@ -372,7 +378,7 @@ public class OrdemDeServicoUseCase implements
             encerramento.encerrar();
             encerramentoRepository.salvar(encerramento);
 
-            registrarMudancaStatus("entregar_veiculo", os, statusAnterior);
+            registrarMudancaStatus("entregar_veiculo", os, statusAnterior, tempoNoStatusAnterior);
             notificarStatus(os);
             return toResult(os);
         } catch (RuntimeException ex) {
@@ -497,7 +503,7 @@ public class OrdemDeServicoUseCase implements
         }
     }
 
-    private void registrarMudancaStatus(String fluxo, OrdemDeServico os, StatusOS statusAnterior) {
+    private void registrarMudancaStatus(String fluxo, OrdemDeServico os, StatusOS statusAnterior, Duration tempoNoStatusAnterior) {
         String mecanicoNome = execucaoRepository.buscarPorOrdemDeServico(os.getId())
                 .map(Execucao::getMecanicoNome)
                 .orElse(null);
@@ -505,20 +511,21 @@ public class OrdemDeServicoUseCase implements
                 fluxo,
                 statusAnterior,
                 os.getStatus(),
-                tempoDesdeCriacao(os),
+                tempoNoStatusAnterior,
                 mecanicoNome,
                 os.getNumero());
         var cliente = clienteRepository.buscarPorId(os.getClienteId()).orElse(os.getCliente());
         var veiculo = veiculoRepository.buscarPorId(os.getVeiculoId()).orElse(os.getVeiculo());
-        metricsPort.registrarSnapshotOperacional(os, cliente, veiculo, mecanicoNome);
+        var dataEntrega = entregaRepository.buscarPorOrdemDeServico(os.getId())
+                .map(Entrega::getDataEntrega).orElse(null);
+        metricsPort.registrarSnapshotOperacional(os, cliente, veiculo, mecanicoNome, dataEntrega);
     }
 
-    private Duration tempoDesdeCriacao(OrdemDeServico os) {
-        if (os.getDataCriacao() == null) {
+    private Duration tempoNoStatusAtual(OrdemDeServico os) {
+        if (os.getDataEntradaStatus() == null) {
             return null;
         }
-        var fim = os.getDataFinalizacao() != null ? os.getDataFinalizacao() : java.time.LocalDateTime.now();
-        return Duration.between(os.getDataCriacao(), fim);
+        return Duration.between(os.getDataEntradaStatus(), java.time.LocalDateTime.now());
     }
 
     private OrdemServicoResult toResult(OrdemDeServico os) {

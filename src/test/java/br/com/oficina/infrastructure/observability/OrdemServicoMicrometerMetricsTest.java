@@ -52,13 +52,14 @@ class OrdemServicoMicrometerMetricsTest {
                         .modelo("Corolla XEi")
                         .ano(2022)
                         .build(),
-                "Carlos Silva");
+                "Carlos Silva", null);
         assertDoesNotThrow(() -> metrics.registrarSnapshotOperacional(
                 OrdemDeServico.builder()
                         .numero(null)
                         .status(null)
                         .dataCriacao(null)
                         .build(),
+                null,
                 null,
                 null,
                 null));
