@@ -1037,7 +1037,7 @@
     },
     {
       "name": "Popular Dashboard Negocio OS",
-      "description": "Cria massa realista para o dashboard operacional da oficina no New Relic: clientes, veiculos, servicos, OS em diferentes status e mecanicos com nomes reais. Valida mecanico nas OS iniciadas. Execute com intervalo de 1000 ms entre requisicoes para observar tempos por status. O grafico diario agrupa a data real de criacao; rode em dias diferentes para gerar varias barras.",
+      "description": "Cria massa realista para o dashboard operacional da oficina no New Relic: clientes, veiculos, servicos, OS em diferentes status e mecanicos com nomes reais. Valida mecanico nas OS iniciadas. Execute com intervalo de 1000 ms entre requisicoes para observar tempos por status. O grafico diario agrupa a data real de criacao; para aberturas retroativas e entregas apos sete dias, execute tambem a pasta Popular Dashboard Historico - Ciclo de 7 dias.",
       "item": [
         {
           "name": "00 - Preparar dados e Login Gestora Patricia Almeida",
@@ -4019,6 +4019,208 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Popular Dashboard Historico - Ciclo de 7 dias",
+      "description": "Somente homologacao: gera sete OS sinteticas ENTREGUES, com aberturas entre D-13 e D-7 e entregas entre D-6 e hoje. Cada ciclo tem exatamente sete dias. Inclui orcamento, mecanico, pagamento simulado e entrega, sem acionar gateway ou e-mail. Repetir no mesmo dia reutiliza as OS. A rota precisa de OFICINA_DASHBOARD_MASSA_HISTORICA_ENABLED=true (habilitada pelo deploy somente em homolog). O grafico diario consulta 14 dias.",
+      "item": [
+        {
+          "name": "00 - Login Gestora para massa historica",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"Patricia Almeida\",\n  \"password\": \"senha123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[HIST] Login 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('hist_tokenGestor', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01 - Criar sete OS historicas com entrega apos uma semana",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/homologacao/dashboard/massa-historica",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "homologacao",
+                "dashboard",
+                "massa-historica"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{hist_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[HIST] Resposta 200', () => pm.response.to.have.status(200));",
+                  "var ordens = pm.response.json();",
+                  "pm.test('[HIST] Sete OS historicas', () => pm.expect(ordens).to.be.an('array').with.lengthOf(7));",
+                  "pm.test('[HIST] Aberturas em sete dias distintos', () => pm.expect(new Set(ordens.map(o => o.dataAbertura.slice(0,10))).size).to.eql(7));",
+                  "ordens.forEach(function(o) {",
+                  "  pm.test('[HIST] ' + o.numero + ' entregue sete dias apos abertura', function() {",
+                  "    pm.expect(o.status).to.eql('ENTREGUE');",
+                  "    pm.expect(o.diasAteEntrega).to.eql(7);",
+                  "    pm.expect(Date.parse(o.dataEntrega) - Date.parse(o.dataAbertura)).to.eql(7 * 24 * 60 * 60 * 1000);",
+                  "    pm.expect(Date.parse(o.dataAbertura)).to.be.below(Date.now());",
+                  "    pm.expect(Date.parse(o.dataEntrega)).to.be.at.most(Date.now() + 60000);",
+                  "  });",
+                  "});",
+                  "pm.collectionVariables.set('hist_osIds', JSON.stringify(ordens.map(o => o.id)));",
+                  "pm.collectionVariables.set('hist_osNumeros', JSON.stringify(ordens.map(o => o.numero)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 - Repetir massa e validar idempotencia",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/homologacao/dashboard/massa-historica",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "homologacao",
+                "dashboard",
+                "massa-historica"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{hist_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[HIST] Repeticao 200', () => pm.response.to.have.status(200));",
+                  "pm.test('[HIST] Nao duplica OS', function() { pm.expect(pm.response.json().map(o => o.id)).to.deep.eql(JSON.parse(pm.collectionVariables.get('hist_osIds'))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 - Conferir OS historicas na listagem",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{hist_tokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('[HIST] Listagem 200', () => pm.response.to.have.status(200));",
+                  "var ids = JSON.parse(pm.collectionVariables.get('hist_osIds'));",
+                  "var historicas = pm.response.json().filter(o => ids.includes(o.id));",
+                  "pm.test('[HIST] Sete OS persistidas', () => pm.expect(historicas).to.have.lengthOf(7));",
+                  "historicas.forEach(o => pm.test('[HIST] ' + o.numero + ' tem mecanico e status entregue', function() { pm.expect(o.status).to.eql('ENTREGUE'); pm.expect(o.mecanicoNome).to.be.a('string').and.not.be.empty; }));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -4281,6 +4483,21 @@
     {
       "key": "email_orcamentoDecisaoToken",
       "value": ""
+    },
+    {
+      "key": "hist_tokenGestor",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "hist_osIds",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "hist_osNumeros",
+      "value": "",
+      "type": "string"
     }
   ]
 }
