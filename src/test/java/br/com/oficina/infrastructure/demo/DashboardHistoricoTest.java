@@ -35,6 +35,7 @@ class DashboardHistoricoTest {
     @Autowired private EntregaRepositoryPort entregas;
     @Autowired private ExecucaoRepositoryPort execucoes;
     @Autowired private MockMvc mvc;
+    @Autowired private br.com.oficina.infrastructure.observability.OrdemServicoStatusSnapshotPublisher publisher;
 
     @Test
     void geraSeteDiasDistintosComCicloCompletoDeUmaSemanaSemDuplicar() {
@@ -54,6 +55,39 @@ class DashboardHistoricoTest {
                     .orElseThrow().getDataEntrega())).isEqualTo(Duration.ofDays(7));
             assertThat(execucoes.buscarPorOrdemDeServico(os.getId()).orElseThrow().getMecanicoNome()).isNotBlank();
             assertThat(os.calcularValorTotal()).isEqualByComparingTo("350.00");
+        }
+    }
+
+    @Test
+    void snapshotPublicaOsIntervalosPersistidosDaMassaHistorica() {
+        var cenarios = service.gerar();
+        var agent = org.mockito.Mockito.mock(com.newrelic.api.agent.Agent.class);
+        var insights = org.mockito.Mockito.mock(com.newrelic.api.agent.Insights.class);
+        try (var nr = org.mockito.Mockito.mockStatic(com.newrelic.api.agent.NewRelic.class)) {
+            nr.when(com.newrelic.api.agent.NewRelic::getAgent).thenReturn(agent);
+            org.mockito.Mockito.when(agent.getInsights()).thenReturn(insights);
+            publisher.publicarSnapshotStatus();
+            @SuppressWarnings("unchecked")
+            org.mockito.ArgumentCaptor<java.util.Map<String, Object>> captor = org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+            org.mockito.Mockito.verify(insights, org.mockito.Mockito.times(21)).recordCustomEvent(
+                    org.mockito.ArgumentMatchers.eq("OficinaOsStatusDurationSnapshot"), captor.capture());
+            var intervalos = captor.getAllValues();
+            for (var cenario : cenarios) {
+                var porOs = intervalos.stream().filter(i -> cenario.numero().equals(i.get("numero_os"))).toList();
+                assertThat(porOs).hasSize(3);
+                assertThat(porOs).anySatisfy(i -> {
+                    assertThat(i.get("status")).isEqualTo("EM_DIAGNOSTICO");
+                    assertThat(i.get("tempo_ms")).isEqualTo(Duration.ofHours(1).toMillis());
+                }).anySatisfy(i -> {
+                    assertThat(i.get("status")).isEqualTo("EM_EXECUCAO");
+                    assertThat(i.get("tempo_ms")).isEqualTo(Duration.ofDays(6).minusHours(2).toMillis());
+                }).anySatisfy(i -> {
+                    assertThat(i.get("status")).isEqualTo("FINALIZADA");
+                    assertThat(i.get("tempo_ms")).isEqualTo(Duration.ofHours(1).toMillis());
+                });
+                porOs.forEach(i -> assertThat(((Number)i.get("fim_ms")).longValue()
+                        - ((Number)i.get("inicio_ms")).longValue()).isEqualTo(((Number)i.get("tempo_ms")).longValue()));
+            }
         }
     }
 

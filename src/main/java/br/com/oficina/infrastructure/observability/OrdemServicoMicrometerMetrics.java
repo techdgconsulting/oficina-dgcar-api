@@ -113,10 +113,31 @@ public class OrdemServicoMicrometerMetrics implements OrdemServicoMetricsPort {
         }
         atributos.put("finalizada_hoje", os.getDataFinalizacao() != null
                 && dataNegocio(os.getDataFinalizacao()).toLocalDate().equals(LocalDate.now(BUSINESS_ZONE)));
+        atributos.put("data_finalizacao_ms", os.getDataFinalizacao() != null
+                ? epochMillis(os.getDataFinalizacao()) : -1L);
         // O valor vazio tambem precisa ser publicado, para latest() nao reutilizar dados antigos.
         atributos.put("data_entrega", os.getStatus() == StatusOS.ENTREGUE && dataEntrega != null
                 ? dataNegocio(dataEntrega).format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")) : "");
         NewRelic.getAgent().getInsights().recordCustomEvent("OficinaOsOperationalSnapshot", atributos);
+    }
+
+    @Override
+    public void registrarTempoStatusPersistido(String numeroOs, StatusOS status,
+                                              LocalDateTime inicio, LocalDateTime fim) {
+        if (inicio == null || fim == null || fim.isBefore(inicio)) {
+            return;
+        }
+        NewRelic.getAgent().getInsights().recordCustomEvent("OficinaOsStatusDurationSnapshot", Map.of(
+                "app_name", appName,
+                "numero_os", valor(numeroOs),
+                "status", status(status),
+                "inicio_ms", epochMillis(inicio),
+                "fim_ms", epochMillis(fim),
+                "tempo_ms", Duration.between(inicio, fim).toMillis()));
+    }
+
+    private static long epochMillis(LocalDateTime data) {
+        return data.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
     }
 
     @Override
