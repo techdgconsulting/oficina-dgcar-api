@@ -1,6 +1,7 @@
 package br.com.oficina.infrastructure.observability;
 
 import jakarta.servlet.FilterChain;
+import com.newrelic.api.agent.NewRelic;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -43,6 +44,7 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         String correlationId = resolveCorrelationId(request);
 
         MDC.put(MDC_CORRELATION_ID, correlationId);
+        NewRelic.addCustomParameter(MDC_CORRELATION_ID, correlationId);
         MDC.put(MDC_REQUEST_METHOD, request.getMethod());
         MDC.put(MDC_REQUEST_URI, request.getRequestURI());
         response.setHeader(CORRELATION_ID_HEADER, correlationId);
