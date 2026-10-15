@@ -31,6 +31,7 @@
                     <fieldName>message</fieldName>
                 </message>
                 <mdc/>
+                <provider class="br.com.oficina.infrastructure.observability.NewRelicLinkingJsonProvider"/>
                 <stackTrace>
                     <fieldName>stacktrace</fieldName>
                 </stackTrace>
