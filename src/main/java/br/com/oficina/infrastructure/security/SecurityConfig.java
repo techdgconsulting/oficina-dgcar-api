@@ -1,7 +1,7 @@
 package br.com.oficina.infrastructure.security;
 
 import br.com.oficina.adapters.in.web.response.ApiErrorResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
