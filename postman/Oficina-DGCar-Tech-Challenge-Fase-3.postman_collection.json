@@ -4221,6 +4221,485 @@
           ]
         }
       ]
+    },
+    {
+      "name": "HPA - Teste de carga",
+      "description": "Execute 00 - Preparacao uma vez no modo Functional. Depois selecione SOMENTE 01 - Carga em Run > Performance. Nao execute o login dentro do loop de carga.\n\nRunner: App, perfil Ramp up, carga inicial 5, maximo 40 usuarios virtuais, duracao 9 minutos; ajuste a rampa para aproximadamente 3min30s e mantenha 40 ate terminar. Configure timeout de 15000 ms no Postman. Respostas esperadas: 200; erros abaixo de 1%.\n\nReferencia exata do k6: 30s ate 5 usuarios, 1min ate 10, 2min ate 20, 5min ate 40 e 30s ate zero, pausa de 50ms por iteracao. Ramp up do Postman e uma aproximacao; nao reproduz automaticamente esses cinco estagios. Para os estagios exatos e prova automatica, use o workflow Validar Escala HPA Homolog em test-only.\n\nUsuarios, duracao, perfil e timeout sao configuracoes do Runner, nao variaveis executaveis deste JSON. A carga somente consulta OS existentes. O HPA usa CPU alvo de 70% do request de 250m (175m por pod). Acompanhe pods Ready e CPU; ao encerrar, aguarde reducao automatica (estabilizacao de aproximadamente cinco minutos). O maximo original do HPA e 3; esta pasta nao limita a escala a 2 e nao garante exatamente 2 pods.\n\nGuia: VALIDACAO-POSTMAN-OBSERVABILIDADE.md.",
+      "item": [
+        {
+          "name": "00 - Preparacao (executar uma vez)",
+          "item": [
+            {
+              "name": "00 - Login Gestora para carga HPA",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Correlation-Id",
+                    "value": "{{$guid}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"{{observabilidadeUsuario}}\",\n  \"password\": \"{{observabilidadeSenha}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.collectionVariables.unset('hpaTokenGestor');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Login GESTOR retorna 200', () => pm.response.to.have.status(200));",
+                      "if (pm.response.code !== 200) { if (pm.execution && pm.execution.setNextRequest) pm.execution.setNextRequest(null); else postman.setNextRequest(null); throw new Error('Login falhou; confira usuario GESTOR e senha.'); }",
+                      "const token = pm.response.json().token;",
+                      "pm.test('Token recebido', () => pm.expect(token).to.be.a('string').and.not.empty);",
+                      "if (!token) { if (pm.execution && pm.execution.setNextRequest) pm.execution.setNextRequest(null); else postman.setNextRequest(null); throw new Error('Token ausente.'); }",
+                      "pm.collectionVariables.set('hpaTokenGestor', token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "01 - Conferir acesso e massa existente",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Correlation-Id",
+                    "value": "{{$guid}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/ordens-servico",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ordens-servico"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{hpaTokenGestor}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Consulta retorna 200', () => pm.response.to.have.status(200));",
+                      "pm.test('Existem OS para a carga', () => pm.expect(pm.response.json()).to.be.an('array').and.not.empty);"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "01 - Carga (somente esta pasta no Performance Runner)",
+          "item": [
+            {
+              "name": "Consultar ordens de servico - carga HPA",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Correlation-Id",
+                    "value": "{{$guid}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/ordens-servico",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ordens-servico"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{hpaTokenGestor}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.collectionVariables.get('hpaTokenGestor')) throw new Error('Execute 00 - Preparacao antes da carga.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Consulta OS retorna 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "OS - Falhas de processamento",
+      "description": "Execute a pasta inteira no modo Functional, uma iteracao e na ordem. Configure baseUrl e credenciais GESTOR. erroOsEmailCliente usa um endereco de massa por padrao; pode ser alterado para sua caixa de testes. Cria uma OS RECEBIDA sem itens por execucao, alem de cliente e veiculo novos. Essa OS permanece cadastrada e entra nas contagens do dashboard.\n\nFinalizar OS RECEBIDA retorna 409 (IllegalStateException, fluxo finalizar_servico); gerar orcamento sem itens retorna 422 (NegocioException, fluxo gerar_orcamento). Ambos sao contabilizados pela API como FALHA_PROCESSAMENTO e ocorrem antes da notificacao. Sao rejeicoes de negocio controladas, nao erros internos 500 nem falhas de autenticacao.\n\nA criacao segue a notificacao normal da API; o endereco padrao e sintetico; para validar entrega de e-mail, informe uma caixa real e configure SMTP. A pasta nao simula falha de notificacao, autenticacao ou pagamento. Confirma ao final que a OS continua RECEBIDA e sem itens. Verifique ingestao no New Relic em ambiente instrumentado; HTTP 409/422 isoladamente nao comprova ingestao.",
+      "item": [
+        {
+          "name": "00 - Preparar massa e autenticar Gestora",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{observabilidadeUsuario}}\",\n  \"password\": \"{{observabilidadeSenha}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.unset('erroOsTokenGestor');",
+                  "['erroOsId','erroOsNumero','erroOsCorrelation409','erroOsCorrelation422'].forEach(k => pm.collectionVariables.unset(k));",
+                  "function digit(base) { const sum = base.split('').reduce((s,n,i) => s + Number(n) * (base.length + 1 - i), 0); const mod = sum % 11; return mod < 2 ? 0 : 11 - mod; }",
+                  "let cpf;",
+                  "do { const base = Array.from({length:9}, () => Math.floor(Math.random()*10)).join(''); const first = base + digit(base); cpf = first + digit(first); } while (/^(\\d)\\1+$/.test(cpf));",
+                  "pm.collectionVariables.set('erroOsDocumento', cpf);",
+                  "const letters = () => String.fromCharCode(65 + Math.floor(Math.random()*26));",
+                  "const number = () => Math.floor(Math.random()*10);",
+                  "pm.collectionVariables.set('erroOsPlaca', letters()+letters()+letters()+number()+letters()+number()+number());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login GESTOR retorna 200', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code !== 200) { if (pm.execution && pm.execution.setNextRequest) pm.execution.setNextRequest(null); else postman.setNextRequest(null); throw new Error('Login falhou; confira usuario GESTOR e senha.'); }",
+                  "const token = pm.response.json().token;",
+                  "pm.test('Token recebido', () => pm.expect(token).to.be.a('string').and.not.empty);",
+                  "if (!token) { if (pm.execution && pm.execution.setNextRequest) pm.execution.setNextRequest(null); else postman.setNextRequest(null); throw new Error('Token ausente.'); }",
+                  "pm.collectionVariables.set('erroOsTokenGestor', token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01 - Criar OS RECEBIDA sem itens",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/completa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "completa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{erroOsTokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": {\n    \"documento\": \"{{erroOsDocumento}}\",\n    \"nome\": \"Teste Falha Processamento OS\",\n    \"telefone\": \"11999990000\",\n    \"email\": \"{{erroOsEmailCliente}}\"\n  },\n  \"veiculo\": {\n    \"placa\": \"{{erroOsPlaca}}\",\n    \"marca\": \"Fiat\",\n    \"modelo\": \"Argo Teste Processamento\",\n    \"ano\": 2022\n  },\n  \"servicos\": [],\n  \"pecas\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OS criada com 201', () => pm.response.to.have.status(201));",
+                  "if (pm.response.code !== 201) { if (pm.execution && pm.execution.setNextRequest) pm.execution.setNextRequest(null); else postman.setNextRequest(null); throw new Error('Massa nao foi criada.'); }",
+                  "const os = pm.response.json();",
+                  "pm.test('OS RECEBIDA e sem itens', function () { pm.expect(os.status).to.eql('RECEBIDA'); pm.expect(os.itens).to.be.an('array').with.lengthOf(0); pm.expect(os.id).to.be.a('number').above(0); });",
+                  "pm.collectionVariables.set('erroOsId', os.id);",
+                  "pm.collectionVariables.set('erroOsNumero', os.numero);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 - Finalizar OS RECEBIDA - espera 409",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{erroOsId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{erroOsId}}",
+                "finalizar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{erroOsTokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('erroOsId')) throw new Error('Crie a OS no passo 01.');",
+                  "const correlation = 'os-processamento-409-' + pm.variables.replaceIn('{{$guid}}');",
+                  "pm.request.headers.upsert({key:'X-Correlation-Id', value:correlation});",
+                  "pm.collectionVariables.set('erroOsCorrelation409', correlation);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Transicao invalida retorna 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Erro de transicao de RECEBIDA', function () { const body = pm.response.json(); pm.expect(body.status).to.eql(409); pm.expect(body.erro).to.include('Status atual: RECEBIDA'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 - Gerar orcamento sem itens - espera 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{erroOsId}}/orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{erroOsId}}",
+                "orcamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{erroOsTokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('erroOsId')) throw new Error('Crie a OS no passo 01.');",
+                  "const correlation = 'os-processamento-422-' + pm.variables.replaceIn('{{$guid}}');",
+                  "pm.request.headers.upsert({key:'X-Correlation-Id', value:correlation});",
+                  "pm.collectionVariables.set('erroOsCorrelation422', correlation);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Orcamento sem itens retorna 422', () => pm.response.to.have.status(422));",
+                  "pm.test('Regra de negocio identificada', function () { const body = pm.response.json(); pm.expect(body.status).to.eql(422); pm.expect(body.erro).to.eql('OS nao tem itens para gerar orcamento'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04 - Confirmar OS preservada apos as falhas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/{{erroOsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{erroOsId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{erroOsTokenGestor}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Consulta retorna 200', () => pm.response.to.have.status(200));",
+                  "pm.test('OS permanece RECEBIDA e sem itens', function () { const os = pm.response.json(); pm.expect(String(os.id)).to.eql(String(pm.collectionVariables.get('erroOsId'))); pm.expect(os.status).to.eql('RECEBIDA'); pm.expect(os.itens).to.be.an('array').with.lengthOf(0); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -4496,6 +4975,62 @@
     },
     {
       "key": "hist_osNumeros",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "observabilidadeUsuario",
+      "value": "Patricia Almeida",
+      "type": "string"
+    },
+    {
+      "key": "observabilidadeSenha",
+      "value": "senha123",
+      "type": "string"
+    },
+    {
+      "key": "hpaTokenGestor",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "erroOsEmailCliente",
+      "value": "teste.processamento@example.com",
+      "type": "string",
+      "description": "Endereco sintetico para a massa de OS. Altere para uma caixa real somente se quiser validar o envio SMTP; nao e necessario para os cenarios 409/422."
+    },
+    {
+      "key": "erroOsTokenGestor",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "erroOsDocumento",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "erroOsPlaca",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "erroOsId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "erroOsNumero",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "erroOsCorrelation409",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "erroOsCorrelation422",
       "value": "",
       "type": "string"
     }
