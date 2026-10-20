@@ -341,6 +341,282 @@
       ]
     },
     {
+      "name": "Evidencia - Correlacao de logs e traces",
+      "description": "Compativel com Bruno (bru/req/res) e Postman (pm). Execute esta pasta inteira em ordem no Runner, com a baseUrl de homolog ou prod. Um Environment e opcional; sem ele, sao usadas as variaveis da Collection. Configure baseUrl, cpfClienteValido, senhaClienteValida e numeroOrdemServico; a OS deve pertencer ao cliente informado. A pasta autentica e consulta uma OS existente duas vezes, sem criar massa de negocio.\n\nO login gera demoCorrelationId automaticamente. As tres chamadas enviam esse mesmo X-Correlation-Id e validam sua devolucao. No Bruno, token, identificador e base ficam em variaveis de runtime da execucao; no Postman, ficam nas variaveis da Collection; refaca o login ao trocar de ambiente ou quando o token expirar. O identificador aparece no console do executor, sem imprimir o token.\n\nCloudWatch: abra o grupo da Lambda do ambiente e procure demoCorrelationId; confira auth_cpf_success e CPF mascarado.\n\nNew Relic: no dashboard API e Kubernetes do mesmo ambiente, use Pod=%, Nivel=% e Correlation ID igual ao valor de demoCorrelationId. Aguarde a ingestao e atualize. Alternativa no Query Builder, substituindo o exemplo pelo identificador gerado:\nFROM Log SELECT * WHERE correlationId = 'IDENTIFICADOR_GERADO' SINCE 30 minutes ago LIMIT 100\n\nAs duas consultas devem gerar registros http_request_completed com requestUri, statusCode, elapsedMs e contexto do pod. Quando disponivel, use trace.id para abrir o trace da API. As consultas sao execucoes separadas e podem ter traces distintos; ha amostragem de traces. O compartilhamento de correlationId entre Lambda e API demonstra correlacao de logs, sem implicar trace distribuido continuo. A pasta nao consulta automaticamente CloudWatch ou New Relic e os testes HTTP nao comprovam ingestao de telemetria. Uma consulta de OS nao altera os indicadores do dashboard Negocio OS.",
+      "item": [
+        {
+          "name": "01 - Autenticar CPF e iniciar correlacao",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "  const demoBruno = typeof bru !== 'undefined';",
+                  "  const demoGet = key => demoBruno ? bru.getVar(key) : pm.collectionVariables.get(key);",
+                  "  const demoSet = (key, value) => demoBruno ? bru.setVar(key, value) : pm.collectionVariables.set(key, value);",
+                  "  const demoInput = key => demoBruno ? bru.interpolate('{{' + key + '}}') : pm.variables.get(key);",
+                  "  const demoHeader = (key, value) => {",
+                  "    if (demoBruno) { req.setHeader(key, value); }",
+                  "    else { pm.request.headers.upsert({key: key, value: value}); }",
+                  "  };",
+                  "  demoSet('demoClienteToken', '');",
+                  "  const demoUrl = String(demoInput('baseUrl') || '');",
+                  "  if (!/^https?:\\/\\//.test(demoUrl) || /[{}<>]/.test(demoUrl)) {",
+                  "    throw new Error('Configure baseUrl com a URL real do API Gateway na Collection ou no Environment.');",
+                  "  }",
+                  "  const demoId = 'demo-video-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);",
+                  "  demoSet('demoCorrelationId', demoId);",
+                  "  demoSet('demoBaseUrl', demoUrl);",
+                  "  demoHeader('X-Correlation-Id', demoId);",
+                  "  console.log('Correlacao da demonstracao:', demoId);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "  const demoBruno = typeof bru !== 'undefined';",
+                  "  const demoGet = key => demoBruno ? bru.getVar(key) : pm.collectionVariables.get(key);",
+                  "  const demoSet = (key, value) => demoBruno ? bru.setVar(key, value) : pm.collectionVariables.set(key, value);",
+                  "  const demoInput = key => demoBruno ? bru.interpolate('{{' + key + '}}') : pm.variables.get(key);",
+                  "  const demoCheck = (name, fn) => { if (demoBruno) { test(name, fn); } else { pm.test(name, fn); } };",
+                  "  const demoAssert = (condition, message) => { if (!condition) { throw new Error(message); } };",
+                  "  const demoStatus = demoBruno ? res.getStatus() : pm.response.code;",
+                  "  const demoResponseHeader = key => demoBruno ? res.getHeader(key) : pm.response.headers.get(key);",
+                  "  const demoBody = () => {",
+                  "    const body = demoBruno ? res.getBody() : pm.response.json();",
+                  "    return typeof body === 'string' ? JSON.parse(body) : body;",
+                  "  };",
+                  "  demoCheck('[DEMO] Resposta HTTP 200', () => demoAssert(demoStatus === 200, 'HTTP recebido: ' + demoStatus));",
+                  "  demoCheck('[DEMO] Resposta preserva X-Correlation-Id', () => demoAssert(demoResponseHeader('X-Correlation-Id') === demoGet('demoCorrelationId'), 'Identificador de correlacao diferente ou ausente'));",
+                  "  if (demoStatus === 200) {",
+                  "    const body = demoBody();",
+                  "    const valid = body.tokenType === 'Bearer' && typeof body.accessToken === 'string' && body.accessToken.length > 0;",
+                  "    demoCheck('[DEMO] Login retorna token Bearer', () => demoAssert(valid, 'Token Bearer ausente ou invalido'));",
+                  "    if (valid) { demoSet('demoClienteToken', body.accessToken); }",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{demoCorrelationId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"{{cpfClienteValido}}\",\n  \"senha\": \"{{senhaClienteValida}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/cpf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "cpf"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "02 - Consultar OS com a mesma correlacao",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "  const demoBruno = typeof bru !== 'undefined';",
+                  "  const demoGet = key => demoBruno ? bru.getVar(key) : pm.collectionVariables.get(key);",
+                  "  const demoSet = (key, value) => demoBruno ? bru.setVar(key, value) : pm.collectionVariables.set(key, value);",
+                  "  const demoInput = key => demoBruno ? bru.interpolate('{{' + key + '}}') : pm.variables.get(key);",
+                  "  const demoHeader = (key, value) => {",
+                  "    if (demoBruno) { req.setHeader(key, value); }",
+                  "    else { pm.request.headers.upsert({key: key, value: value}); }",
+                  "  };",
+                  "  if (!demoGet('demoClienteToken') || !demoGet('demoCorrelationId')) {",
+                  "    throw new Error('Execute primeiro o login desta pasta na mesma execucao do Runner.');",
+                  "  }",
+                  "  if (demoGet('demoBaseUrl') !== String(demoInput('baseUrl') || '')) {",
+                  "    throw new Error('A baseUrl mudou. Execute novamente o login desta pasta.');",
+                  "  }",
+                  "  demoHeader('X-Correlation-Id', demoGet('demoCorrelationId'));",
+                  "  demoHeader('Authorization', 'Bearer ' + demoGet('demoClienteToken'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "  const demoBruno = typeof bru !== 'undefined';",
+                  "  const demoGet = key => demoBruno ? bru.getVar(key) : pm.collectionVariables.get(key);",
+                  "  const demoSet = (key, value) => demoBruno ? bru.setVar(key, value) : pm.collectionVariables.set(key, value);",
+                  "  const demoInput = key => demoBruno ? bru.interpolate('{{' + key + '}}') : pm.variables.get(key);",
+                  "  const demoCheck = (name, fn) => { if (demoBruno) { test(name, fn); } else { pm.test(name, fn); } };",
+                  "  const demoAssert = (condition, message) => { if (!condition) { throw new Error(message); } };",
+                  "  const demoStatus = demoBruno ? res.getStatus() : pm.response.code;",
+                  "  const demoResponseHeader = key => demoBruno ? res.getHeader(key) : pm.response.headers.get(key);",
+                  "  const demoBody = () => {",
+                  "    const body = demoBruno ? res.getBody() : pm.response.json();",
+                  "    return typeof body === 'string' ? JSON.parse(body) : body;",
+                  "  };",
+                  "  demoCheck('[DEMO] Resposta HTTP 200', () => demoAssert(demoStatus === 200, 'HTTP recebido: ' + demoStatus));",
+                  "  demoCheck('[DEMO] Resposta preserva X-Correlation-Id', () => demoAssert(demoResponseHeader('X-Correlation-Id') === demoGet('demoCorrelationId'), 'Identificador de correlacao diferente ou ausente'));",
+                  "  if (demoStatus === 200) {",
+                  "    const body = demoBody();",
+                  "    demoCheck('[DEMO] OS pertence ao cliente autenticado', function () {",
+                  "      demoAssert(body.numero === demoInput('numeroOrdemServico'), 'Numero de OS diferente do configurado');",
+                  "      demoAssert(String(body.clienteDocumento).replace(/\\D/g, '') === String(demoInput('cpfClienteValido')).replace(/\\D/g, ''), 'CPF da OS diferente do cliente configurado');",
+                  "    });",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{demoCorrelationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "numero",
+                "{{numeroOrdemServico}}"
+              ]
+            },
+            "description": "O pre-request injeta o Bearer capturado no login desta pasta e o mesmo X-Correlation-Id. Execute a pasta em ordem no Runner."
+          },
+          "response": []
+        },
+        {
+          "name": "03 - Repetir consulta para evidenciar outra execucao",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "  const demoBruno = typeof bru !== 'undefined';",
+                  "  const demoGet = key => demoBruno ? bru.getVar(key) : pm.collectionVariables.get(key);",
+                  "  const demoSet = (key, value) => demoBruno ? bru.setVar(key, value) : pm.collectionVariables.set(key, value);",
+                  "  const demoInput = key => demoBruno ? bru.interpolate('{{' + key + '}}') : pm.variables.get(key);",
+                  "  const demoHeader = (key, value) => {",
+                  "    if (demoBruno) { req.setHeader(key, value); }",
+                  "    else { pm.request.headers.upsert({key: key, value: value}); }",
+                  "  };",
+                  "  if (!demoGet('demoClienteToken') || !demoGet('demoCorrelationId')) {",
+                  "    throw new Error('Execute primeiro o login desta pasta na mesma execucao do Runner.');",
+                  "  }",
+                  "  if (demoGet('demoBaseUrl') !== String(demoInput('baseUrl') || '')) {",
+                  "    throw new Error('A baseUrl mudou. Execute novamente o login desta pasta.');",
+                  "  }",
+                  "  demoHeader('X-Correlation-Id', demoGet('demoCorrelationId'));",
+                  "  demoHeader('Authorization', 'Bearer ' + demoGet('demoClienteToken'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "{",
+                  "  const demoBruno = typeof bru !== 'undefined';",
+                  "  const demoGet = key => demoBruno ? bru.getVar(key) : pm.collectionVariables.get(key);",
+                  "  const demoSet = (key, value) => demoBruno ? bru.setVar(key, value) : pm.collectionVariables.set(key, value);",
+                  "  const demoInput = key => demoBruno ? bru.interpolate('{{' + key + '}}') : pm.variables.get(key);",
+                  "  const demoCheck = (name, fn) => { if (demoBruno) { test(name, fn); } else { pm.test(name, fn); } };",
+                  "  const demoAssert = (condition, message) => { if (!condition) { throw new Error(message); } };",
+                  "  const demoStatus = demoBruno ? res.getStatus() : pm.response.code;",
+                  "  const demoResponseHeader = key => demoBruno ? res.getHeader(key) : pm.response.headers.get(key);",
+                  "  const demoBody = () => {",
+                  "    const body = demoBruno ? res.getBody() : pm.response.json();",
+                  "    return typeof body === 'string' ? JSON.parse(body) : body;",
+                  "  };",
+                  "  demoCheck('[DEMO] Resposta HTTP 200', () => demoAssert(demoStatus === 200, 'HTTP recebido: ' + demoStatus));",
+                  "  demoCheck('[DEMO] Resposta preserva X-Correlation-Id', () => demoAssert(demoResponseHeader('X-Correlation-Id') === demoGet('demoCorrelationId'), 'Identificador de correlacao diferente ou ausente'));",
+                  "  if (demoStatus === 200) {",
+                  "    const body = demoBody();",
+                  "    demoCheck('[DEMO] OS pertence ao cliente autenticado', function () {",
+                  "      demoAssert(body.numero === demoInput('numeroOrdemServico'), 'Numero de OS diferente do configurado');",
+                  "      demoAssert(String(body.clienteDocumento).replace(/\\D/g, '') === String(demoInput('cpfClienteValido')).replace(/\\D/g, ''), 'CPF da OS diferente do cliente configurado');",
+                  "    });",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{demoCorrelationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ordens-servico/numero/{{numeroOrdemServico}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "numero",
+                "{{numeroOrdemServico}}"
+              ]
+            },
+            "description": "O pre-request injeta o Bearer capturado no login desta pasta e o mesmo X-Correlation-Id. Execute a pasta em ordem no Runner."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Fluxo Completo",
       "item": [
         {
