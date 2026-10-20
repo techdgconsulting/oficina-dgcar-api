@@ -9,6 +9,7 @@ target/
 *.war
 allure-results/
 allure-report/
+.allure/
 .idea/
 .vscode/
 .DS_Store

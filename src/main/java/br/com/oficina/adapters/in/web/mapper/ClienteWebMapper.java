@@ -48,7 +48,8 @@ public class ClienteWebMapper {
             result.logradouro(),
             result.bairro(),
             result.cidade(),
-            result.uf()
+            result.uf(),
+            result.statusCliente()
         );
     }
 }

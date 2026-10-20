@@ -8,6 +8,7 @@ import br.com.oficina.application.port.out.BuscarEnderecoPorCepPort;
 import br.com.oficina.application.port.out.ClienteRepositoryPort;
 import br.com.oficina.application.port.out.ExecucaoRepositoryPort;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.PecaRepositoryPort;
 import br.com.oficina.application.port.out.ServicoRepositoryPort;
 import br.com.oficina.application.port.out.VeiculoRepositoryPort;
@@ -61,7 +62,8 @@ class CriarOrdemServicoCompletaUseCaseTest {
             pecaRepository,
             execucaoRepository,
             buscarEnderecoPorCepPort,
-            notificarStatusOrdemServicoInputPort
+            notificarStatusOrdemServicoInputPort,
+            OrdemServicoMetricsPort.NOOP
         );
 
         cliente = Cliente.builder()

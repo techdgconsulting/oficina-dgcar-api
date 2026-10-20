@@ -27,6 +27,7 @@ import br.com.oficina.application.port.out.EncerramentoRepositoryPort;
 import br.com.oficina.application.port.out.EntregaRepositoryPort;
 import br.com.oficina.application.port.out.ExecucaoRepositoryPort;
 import br.com.oficina.application.port.out.OrcamentoRepositoryPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.PagamentoGatewayPort;
 import br.com.oficina.application.port.out.PagamentoRepositoryPort;
 import br.com.oficina.application.port.out.PasswordHasherPort;
@@ -250,7 +251,10 @@ class UseCaseEdgeCoverageTest {
     void processarPagamentoCobreAprovacaoRecusaEInexistente() {
         var pagamentoRepository = mock(PagamentoRepositoryPort.class);
         var pagamentoGateway = mock(PagamentoGatewayPort.class);
-        var useCase = new ProcessarPagamentoUseCase(pagamentoRepository, pagamentoGateway);
+        var useCase = new ProcessarPagamentoUseCase(
+                pagamentoRepository,
+                pagamentoGateway,
+                OrdemServicoMetricsPort.NOOP);
         var pagamentoAprovado = Pagamento.criar(1L, new BigDecimal("100.00"), MetodoPagamento.PIX);
         var pagamentoRecusado = Pagamento.criar(2L, new BigDecimal("150.00"), MetodoPagamento.CARTAO_CREDITO);
 

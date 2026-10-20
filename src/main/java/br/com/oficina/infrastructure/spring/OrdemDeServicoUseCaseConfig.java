@@ -7,6 +7,7 @@ import br.com.oficina.application.port.out.EntregaRepositoryPort;
 import br.com.oficina.application.port.out.ExecucaoRepositoryPort;
 import br.com.oficina.application.port.out.OrcamentoRepositoryPort;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.PagamentoGatewayPort;
 import br.com.oficina.application.port.out.PagamentoRepositoryPort;
 import br.com.oficina.application.port.out.PecaRepositoryPort;
@@ -37,7 +38,8 @@ public class OrdemDeServicoUseCaseConfig {
             EntregaRepositoryPort entregaRepository,
             EncerramentoRepositoryPort encerramentoRepository,
             PagamentoGatewayPort pagamentoGateway,
-            NotificarStatusOrdemServicoInputPort notificarStatusOrdemServicoInputPort) {
+            NotificarStatusOrdemServicoInputPort notificarStatusOrdemServicoInputPort,
+            OrdemServicoMetricsPort metricsPort) {
         return new OrdemDeServicoUseCase(
             osRepository,
             clienteRepository,
@@ -50,7 +52,8 @@ public class OrdemDeServicoUseCaseConfig {
             entregaRepository,
             encerramentoRepository,
             pagamentoGateway,
-            notificarStatusOrdemServicoInputPort
+            notificarStatusOrdemServicoInputPort,
+            metricsPort
         );
     }
 
@@ -70,7 +73,8 @@ public class OrdemDeServicoUseCaseConfig {
             PecaRepositoryPort pecaRepository,
             ExecucaoRepositoryPort execucaoRepository,
             BuscarEnderecoPorCepPort buscarEnderecoPorCepPort,
-            NotificarStatusOrdemServicoInputPort notificarStatusOrdemServicoInputPort) {
+            NotificarStatusOrdemServicoInputPort notificarStatusOrdemServicoInputPort,
+            OrdemServicoMetricsPort metricsPort) {
         return new CriarOrdemServicoCompletaUseCase(
             osRepository,
             clienteRepository,
@@ -79,7 +83,8 @@ public class OrdemDeServicoUseCaseConfig {
             pecaRepository,
             execucaoRepository,
             buscarEnderecoPorCepPort,
-            notificarStatusOrdemServicoInputPort
+            notificarStatusOrdemServicoInputPort,
+            metricsPort
         );
     }
 }

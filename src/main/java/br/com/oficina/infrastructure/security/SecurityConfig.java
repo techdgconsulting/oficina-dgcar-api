@@ -1,7 +1,7 @@
 package br.com.oficina.infrastructure.security;
 
 import br.com.oficina.adapters.in.web.response.ApiErrorResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
@@ -53,8 +53,6 @@ public class SecurityConfig {
                 // Necessário para error dispatch do Tomcat (403 → /error) não ser sobrescrito por 401
                 .requestMatchers(paths.matcher("/error")).permitAll()
 
-                // consulta de status pelo número da OS (público, sem token) — usa numero da OS, não ID interno
-                .requestMatchers(paths.matcher(HttpMethod.GET, "/api/ordens-servico/numero/*/status")).permitAll()
                 // decisão externa de orçamento por token opaco enviado ao cliente
                 .requestMatchers(paths.matcher(HttpMethod.POST, "/api/orcamentos/decisoes-cliente/*/aprovar")).permitAll()
                 .requestMatchers(paths.matcher(HttpMethod.POST, "/api/orcamentos/decisoes-cliente/*/recusar")).permitAll()

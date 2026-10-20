@@ -3,6 +3,7 @@ package br.com.oficina.application.usecase;
 import br.com.oficina.application.command.ProcessarPagamentoCommand;
 import br.com.oficina.application.exception.RecursoNaoEncontradoException;
 import br.com.oficina.application.port.in.ProcessarPagamentoInputPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.PagamentoGatewayPort;
 import br.com.oficina.application.port.out.PagamentoRepositoryPort;
 import br.com.oficina.application.query.PagamentoResult;
@@ -13,22 +14,29 @@ public class ProcessarPagamentoUseCase implements ProcessarPagamentoInputPort {
 
     private final PagamentoRepositoryPort pagamentoRepository;
     private final PagamentoGatewayPort pagamentoGateway;
+    private final OrdemServicoMetricsPort metricsPort;
 
     @Override
     public PagamentoResult execute(ProcessarPagamentoCommand command) {
-        var pagamento = pagamentoRepository.buscarPorId(command.pagamentoId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Pagamento nao encontrado: " + command.pagamentoId()));
+        try {
+            var pagamento = pagamentoRepository.buscarPorId(command.pagamentoId())
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Pagamento nao encontrado: " + command.pagamentoId()));
 
-        var response = pagamentoGateway.processar(new PagamentoGatewayPort.GatewayRequest(
-                pagamento.getOrdemDeServicoId(),
-                pagamento.getValor(),
-                pagamento.getMetodo()));
+            var response = pagamentoGateway.processar(new PagamentoGatewayPort.GatewayRequest(
+                    pagamento.getOrdemDeServicoId(),
+                    pagamento.getValor(),
+                    pagamento.getMetodo()));
 
-        if (response.aprovado()) {
-            pagamento.aprovar(response.transactionId(), response.mensagem());
-        } else {
-            pagamento.recusar(response.transactionId(), response.mensagem());
+            if (response.aprovado()) {
+                pagamento.aprovar(response.transactionId(), response.mensagem());
+            } else {
+                pagamento.recusar(response.transactionId(), response.mensagem());
+                metricsPort.registrarFalhaPagamento("recusado_gateway", null);
+            }
+            return PagamentoResultMapper.toResult(pagamentoRepository.salvar(pagamento));
+        } catch (RuntimeException ex) {
+            metricsPort.registrarFalhaPagamento("erro_processamento", ex);
+            throw ex;
         }
-        return PagamentoResultMapper.toResult(pagamentoRepository.salvar(pagamento));
     }
 }

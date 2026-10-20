@@ -13,14 +13,14 @@ import br.com.oficina.application.port.in.ListarClientesInputPort;
 import br.com.oficina.application.query.ClienteResult;
 import br.com.oficina.application.port.out.TokenProviderPort;
 import br.com.oficina.infrastructure.security.SecurityConfig;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -58,7 +58,7 @@ class ClienteControllerTest {
     @MockitoBean private UserDetailsService userDetailsService;
 
     private final ClienteResult resp = new ClienteResult(1L, "529.982.247-25", "CPF", "Joao", "11999", "j@e.com",
-            "01001-000", "Praca da Se", "Se", "Sao Paulo", "SP");
+            "01001-000", "Praca da Se", "Se", "Sao Paulo", "SP", "ATIVO");
 
     @Test
     @WithMockUser(roles = "GESTOR")

@@ -1,15 +1,18 @@
 package br.com.oficina.adapters.in.web.controller;
 
 import br.com.oficina.adapters.in.web.response.ApiErrorResponse;
+import io.swagger.v3.oas.annotations.Hidden;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.boot.web.servlet.error.ErrorController;
+import org.springframework.boot.webmvc.error.ErrorController;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Hidden
 public class SanitizedErrorController implements ErrorController {
 
     @RequestMapping("${server.error.path:${error.path:/error}}")
@@ -22,6 +25,9 @@ public class SanitizedErrorController implements ErrorController {
 
     private HttpStatus resolveStatus(HttpServletRequest request) {
         Object statusCode = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
+        if (statusCode == null && request.getDispatcherType() != DispatcherType.ERROR) {
+            return HttpStatus.NOT_FOUND;
+        }
         if (statusCode instanceof Integer code) {
             HttpStatus status = HttpStatus.resolve(code);
             if (status != null) {

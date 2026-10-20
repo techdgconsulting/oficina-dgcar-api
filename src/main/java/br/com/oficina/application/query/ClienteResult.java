@@ -11,5 +11,6 @@ public record ClienteResult(
     String logradouro,
     String bairro,
     String cidade,
-    String uf
+    String uf,
+    String statusCliente
 ) {}

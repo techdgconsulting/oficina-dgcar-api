@@ -9,15 +9,18 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class OrdemDeServicoPersistenceAdapter implements OrdemDeServicoRepositoryPort {
 
     private final SpringDataOrdemDeServicoRepository repository;
     private final OrdemDeServicoPersistenceMapper mapper;
 
     @Override
+    @Transactional
     public OrdemDeServico salvar(OrdemDeServico ordemDeServico) {
         return mapper.toDomain(repository.save(mapper.toEntity(ordemDeServico)));
     }

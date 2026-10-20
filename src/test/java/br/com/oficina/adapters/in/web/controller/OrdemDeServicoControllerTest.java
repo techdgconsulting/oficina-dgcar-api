@@ -35,7 +35,7 @@ import br.com.oficina.domain.valueobject.StatusOS;
 import br.com.oficina.application.port.out.TokenProviderPort;
 import br.com.oficina.infrastructure.security.ClienteSecurity;
 import br.com.oficina.infrastructure.security.SecurityConfig;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -44,7 +44,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -479,14 +479,32 @@ class OrdemDeServicoControllerTest {
     }
 
     @Test
-    @Story("Consultar status por numero publico via API")
-    void deveConsultarStatusPorNumeroPublico() throws Exception {
+    @Story("Cliente consulta status da propria OS por numero legivel")
+    @WithMockUser(username = "52998224725", roles = "CLIENTE")
+    void clienteDeveConsultarStatusDaPropriaOSPorNumero() throws Exception {
         when(buscarOrdemServicoPorNumeroInputPort.execute("OS-2026-00001")).thenReturn(osResp());
         mockMvc.perform(get("/api/ordens-servico/numero/OS-2026-00001/status"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.numero").value("OS-2026-00001"))
             .andExpect(jsonPath("$.status").value("RECEBIDA"))
             .andExpect(jsonPath("$.mecanicoNome").isEmpty());
+    }
+
+    @Test
+    @Story("Status por numero exige autenticacao")
+    void statusPorNumeroSemTokenRetorna401() throws Exception {
+        mockMvc.perform(get("/api/ordens-servico/numero/OS-2026-00001/status"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @Story("Cliente nao consulta status de OS de outro CPF por numero legivel")
+    @WithMockUser(username = "52998224725", roles = "CLIENTE")
+    void clienteNaoDeveConsultarStatusDeOutroClientePorNumero() throws Exception {
+        when(buscarOrdemServicoPorNumeroInputPort.execute("OS-2026-00002")).thenReturn(osRespOutroCliente());
+
+        mockMvc.perform(get("/api/ordens-servico/numero/OS-2026-00002/status"))
+            .andExpect(status().isForbidden());
     }
 
     @Test

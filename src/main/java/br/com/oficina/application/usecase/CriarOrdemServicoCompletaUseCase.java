@@ -11,6 +11,7 @@ import br.com.oficina.application.port.out.BuscarEnderecoPorCepPort;
 import br.com.oficina.application.port.out.ClienteRepositoryPort;
 import br.com.oficina.application.port.out.ExecucaoRepositoryPort;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.PecaRepositoryPort;
 import br.com.oficina.application.port.out.ServicoRepositoryPort;
 import br.com.oficina.application.port.out.VeiculoRepositoryPort;
@@ -42,26 +43,34 @@ public class CriarOrdemServicoCompletaUseCase implements CriarOrdemServicoComple
     private final ExecucaoRepositoryPort execucaoRepository;
     private final BuscarEnderecoPorCepPort buscarEnderecoPorCepPort;
     private final NotificarStatusOrdemServicoInputPort notificarStatusOrdemServicoInputPort;
+    private final OrdemServicoMetricsPort metricsPort;
 
     @Override
     @Transactional
     public OrdemServicoResult execute(CriarOrdemServicoCompletaCommand command) {
-        var cliente = obterOuCriarCliente(command);
-        var veiculo = obterOuCriarVeiculo(command, cliente);
+        try {
+            var cliente = obterOuCriarCliente(command);
+            var veiculo = obterOuCriarVeiculo(command, cliente);
 
-        var os = OrdemDeServico.criar(cliente, veiculo);
-        os.atribuirAtendente(command.atendenteNome());
-        for (var item : itens(command)) {
-            os.adicionarItem(montarItem(item));
+            var os = OrdemDeServico.criar(cliente, veiculo);
+            os.atribuirAtendente(command.atendenteNome());
+            for (var item : itens(command)) {
+                os.adicionarItem(montarItem(item));
+            }
+
+            os = osRepository.salvar(os);
+            os.atribuirNumero(String.format("OS-%d-%05d", os.getDataCriacao().getYear(), os.getId()));
+            os = osRepository.salvar(os);
+
+            execucaoRepository.salvar(Execucao.criar(os.getId()));
+            metricsPort.registrarOsCriada("completa", os.getStatus(), os.getNumero());
+            metricsPort.registrarSnapshotOperacional(os, cliente, veiculo, null, null);
+            notificarStatus(os, cliente);
+            return toResult(os);
+        } catch (RuntimeException ex) {
+            metricsPort.registrarFalhaProcessamento("criar_os_completa", ex);
+            throw ex;
         }
-
-        os = osRepository.salvar(os);
-        os.atribuirNumero(String.format("OS-%d-%05d", os.getDataCriacao().getYear(), os.getId()));
-        os = osRepository.salvar(os);
-
-        execucaoRepository.salvar(Execucao.criar(os.getId()));
-        notificarStatus(os, cliente);
-        return toResult(os);
     }
 
     private Cliente obterOuCriarCliente(CriarOrdemServicoCompletaCommand command) {
@@ -170,13 +179,17 @@ public class CriarOrdemServicoCompletaUseCase implements CriarOrdemServicoComple
 
     private void notificarStatus(OrdemDeServico os, Cliente cliente) {
         try {
-            notificarStatusOrdemServicoInputPort.execute(new NotificarStatusOrdemServicoCommand(
+            var resultado = notificarStatusOrdemServicoInputPort.execute(new NotificarStatusOrdemServicoCommand(
                     os.getId(),
                     os.getNumero(),
                     os.getStatus().name(),
                     cliente.getNome(),
                     cliente.getEmail()));
+            if (!resultado.enviado()) {
+                metricsPort.registrarFalhaNotificacao("status_os", os.getStatus(), null);
+            }
         } catch (Exception ex) {
+            metricsPort.registrarFalhaNotificacao("status_os", os.getStatus(), ex);
             log.warn("NOTIFICACAO_STATUS_OS_FALHOU osId={} numero={} status={} erro={}",
                     os.getId(), os.getNumero(), os.getStatus(), ex.getMessage());
         }

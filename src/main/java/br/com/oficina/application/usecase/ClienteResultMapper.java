@@ -20,7 +20,8 @@ final class ClienteResultMapper {
             c.getLogradouro(),
             c.getBairro(),
             c.getCidade(),
-            c.getUf()
+            c.getUf(),
+            c.getStatusCliente()
         );
     }
 }
