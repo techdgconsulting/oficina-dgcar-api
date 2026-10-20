@@ -1,537 +1,234 @@
 # oficina-dgcar-api
 
-Repositorio da aplicacao principal Spring Boot da Oficina Mecanica DGCar no Tech Challenge 3.
+API Spring Boot da Oficina DGCar. Implementa clientes, veículos, ordens de serviço, diagnóstico, orçamento, execução, pagamento, entrega e notificações. Mantém as migrations Flyway e o contrato OpenAPI. Os ambientes AWS são `homolog` e `prod`.
 
-## Proposito
-
-Este repositorio concentra a API principal da oficina, executada em Kubernetes e integrada ao banco PostgreSQL gerenciado.
-
-Foram mantidas as responsabilidades de negocio da aplicacao e foi implementada a validacao de dois tipos de JWT:
-
-- JWT interno de funcionarios, usado por `ATENDENTE`, `MECANICO` e `GESTOR`.
-- JWT externo de cliente, emitido pela Lambda `oficina-dgcar-auth-lambda` com `tipo=CLIENTE`.
-
-A validacao do JWT externo foi implementada tambem na aplicacao para defesa em profundidade, alem da protecao no API Gateway.
+A autenticação de funcionários usa JWT interno e perfis ATENDENTE, MECANICO e GESTOR. O JWT CLIENTE é emitido pela Lambda Auth; a API valida assinatura, issuer, audience e tipo, restringindo a consulta externa às OS do cliente autenticado.
 
 ## Tecnologias
 
-- Java 17
-- Spring Boot
-- Spring Security
-- Maven
-- PostgreSQL
-- Flyway
-- Docker
-- Kubernetes
-- GitHub Actions
-- OpenAPI/Swagger
+Java 17, Spring Boot, Spring Security, Maven, JPA/Hibernate, PostgreSQL 16, Flyway, JUnit, Testcontainers, JaCoCo, Docker Compose, Kubernetes, OpenAPI/Swagger, Micrometer e New Relic Java Agent. GitHub Actions realiza validação e deploy no EKS, com imagens no ECR.
 
-## Relacao Com Os Demais Repositorios
+## Arquitetura deste repositório
 
-- `oficina-dgcar-auth-lambda`: emite JWT externo de cliente no fluxo `POST /auth/cpf`.
-- `oficina-dgcar-infra-db`: provisiona o RDS PostgreSQL consumido pela aplicacao.
-- `oficina-dgcar-infra-k8s`: provisiona EKS, ECR, API Gateway e integra o Gateway com a aplicacao.
-- `oficina-dgcar-docs`: centraliza documentacao arquitetural, RFCs, ADRs, diagramas, banco, observabilidade e evidencias.
-- `mvp-posfiap-oficina-mecanica`: permanece como repositorio historico da evolucao.
-
-## Documentacao Central
-
-A documentacao arquitetural completa do Tech Challenge 3 esta centralizada em:
-
-[oficina-dgcar-docs](https://github.com/techdgconsulting/oficina-dgcar-docs)
-
-Este repositorio mantem apenas a documentacao especifica da aplicacao principal, incluindo execucao, deploy, variaveis, rotas e validacoes da API.
-
-## Arquitetura De Entrada
-
-O API Gateway foi definido como entrada oficial da solucao.
-
-Fluxo de autenticacao externa:
-
-```text
-Cliente -> API Gateway POST /auth/cpf com CPF e senha -> Lambda Auth CPF + Senha -> RDS PostgreSQL -> JWT CLIENTE
+```mermaid
+flowchart LR
+  Gateway[API Gateway] --> Service[Service no EKS]
+  Service --> API[API Spring Boot]
+  API --> Auth[Validacao JWT e perfis]
+  API --> UseCases[Casos de uso de OS]
+  UseCases --> DB[(PostgreSQL)]
+  UseCases --> Mail[Notificacoes SMTP ou LOG]
+  API --> Agent[Java Agent e eventos de negocio]
+  Agent --> NR[New Relic]
+  API --> JSON[stdout JSON]
+  JSON --> Collector[Coletor Kubernetes]
+  Collector --> NR
+  Lambda[Lambda Auth - repositorio separado] --> ClientJWT[JWT CLIENTE]
+  ClientJWT --> Auth
 ```
 
-Fluxo de consulta protegida:
+EKS, Gateway e coletor são provisionados por [infra-k8s](https://github.com/techdgconsulting/oficina-dgcar-infra-k8s). O RDS é responsabilidade de [infra-db](https://github.com/techdgconsulting/oficina-dgcar-infra-db); a autenticação externa fica em [auth-lambda](https://github.com/techdgconsulting/oficina-dgcar-auth-lambda).
 
-```text
-Cliente -> API Gateway -> API Spring Boot no EKS -> Validacao JWT CLIENTE -> Consulta somente das proprias OS
+## Execução local
+
+Escolha uma das opções abaixo. Ambas expõem a API na porta **8080**. Os comandos são executados na raiz deste repositório.
+
+### Aplicação e PostgreSQL pelo Docker Compose
+
+Pré-requisitos: Docker com Compose, acesso aos registries e porta 8080 disponível. O build também baixa dependências e o Java Agent.
+
+```sh
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 app
 ```
 
-Endpoint de homologacao do API Gateway:
+O Compose sobe **app e db**, aguarda o healthcheck do banco e executa a API. Não é necessário iniciar Maven em paralelo.
 
-```text
-https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com
-```
-
-Rota publica de autenticacao por CPF e senha:
-
-```http
-POST /auth/cpf
-Content-Type: application/json
-
-{
-  "cpf": "52398614808",
-  "senha": "Cliente@123"
-}
-```
-
-Resposta esperada quando o cliente existe e esta apto:
-
-```json
-{
-  "tokenType": "Bearer",
-  "accessToken": "<jwt-cliente>",
-  "expiresIn": "15m"
-}
-```
-
-## JWT Externo De Cliente
-
-O JWT externo foi separado do JWT interno de funcionarios.
-
-Claims esperadas no JWT de cliente:
-
-```json
-{
-  "sub": "12345678909",
-  "clienteId": 1,
-  "tipo": "CLIENTE",
-  "status": "ATIVO",
-  "iat": 1760000000,
-  "exp": 1760003600,
-  "iss": "oficina-dgcar-auth-lambda",
-  "aud": "oficina-dgcar-api"
-}
-```
-
-Validacoes implementadas na API:
-
-- Assinatura com `CLIENT_JWT_SECRET`.
-- `issuer` igual a `CLIENT_JWT_ISSUER`.
-- `audience` igual a `CLIENT_JWT_AUDIENCE`.
-- Claim `tipo=CLIENTE`.
-- Claim `clienteId` como identificador interno rastreavel.
-- Claim `sub` com CPF normalizado do cliente autenticado, usado para restringir a consulta da propria OS.
-
-O login interno de funcionarios continua separado e usa `username + senha` na aplicacao Spring. O login externo de clientes usa `CPF + senha` na Lambda e emite apenas JWT com `tipo=CLIENTE`.
-
-## Rotas Publicas
-
-As rotas publicas permanecem sem JWT da aplicacao:
-
-| Metodo | Rota | Finalidade |
-|---|---|---|
-| `POST` | `/auth/login` | Login interno de funcionario |
-| `POST` | `/auth/registrar` | Registro interno conforme regra atual |
-| `GET` | `/swagger-ui.html` | Swagger UI |
-| `GET` | `/api-docs/**` | OpenAPI |
-| `GET` | `/actuator/health/**` | Healthcheck |
-| `GET` | `/actuator/info` | Informacoes basicas |
-| `GET` | `/api/ordens-servico/status/{numero}` | Consulta publica de status por numero |
-| `GET` | `/api/ordens-servico/orcamento/decisao/{token}` | Consulta de decisao por token opaco |
-| `POST` | `/api/ordens-servico/orcamento/decisao/{token}/aprovar` | Aprovacao por token opaco |
-| `POST` | `/api/ordens-servico/orcamento/decisao/{token}/recusar` | Recusa por token opaco |
-
-No API Gateway, a rota publica externa de autenticacao por CPF foi criada no repositorio `oficina-dgcar-infra-k8s`:
-
-| Metodo | Rota | Integracao |
-|---|---|---|
-| `POST` | `/auth/cpf` | Lambda `oficina-dgcar-auth-lambda` |
-
-## Rotas Protegidas Por JWT De Cliente
-
-As rotas abaixo aceitam JWT externo `CLIENTE` emitido pela Lambda, alem dos perfis internos autorizados:
-
-| Metodo | Rota | Regra implementada |
-|---|---|---|
-| `GET` | `/api/ordens-servico/numero/{numero}` | `CLIENTE` pode consultar apenas OS vinculada ao CPF do proprio JWT |
-
-O endpoint `/api/ordens-servico/cliente/{clienteId}` permanece para uso interno/autorizado, mas nao e o fluxo recomendado para cliente externo porque `clienteId` e identificador interno. Para cliente externo, a consulta demonstravel usa o numero legivel da OS, por exemplo `OS-2026-00001`.
-
-Clientes externos nao abrem ordens de servico pela API. A criacao de OS permanece restrita a perfis internos da oficina (`ATENDENTE` e `GESTOR`).
-
-Exemplo de chamada protegida:
-
-```bash
-curl --location "https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com/api/ordens-servico/numero/OS-2026-00001" \
-  --header "Authorization: Bearer <jwt-cliente>"
-```
-
-## Evidencia Postman Do Fluxo CPF Senha JWT API
-
-Foi consolidada a collection [`postman/Oficina-DGCar-Tech-Challenge-Fase-3.postman_collection.json`](./postman/Oficina-DGCar-Tech-Challenge-Fase-3.postman_collection.json) para demonstrar os fluxos da Fase 3 em homologacao.
-
-Pastas da collection:
-
-| Pasta | Conteudo |
+| Conexão | Endereço |
 |---|---|
-| `Gateway JWT Cliente` | Fluxo CPF + senha, JWT externo `CLIENTE` e chamadas protegidas pelo API Gateway |
-| `Fluxo Completo` | Fluxo operacional completo trazido da collection historica `TechChallengeFase2` |
+| API no host | `http://localhost:8080` |
+| PostgreSQL a partir do host | `localhost:5434` |
+| PostgreSQL a partir do container app | `db:5432` |
+| Banco | `oficina` |
 
-Fluxo demonstrado em `Gateway JWT Cliente`:
+O Compose usa volume `pgdata`. `docker compose down` encerra os serviços mantendo esse volume. As migrations são aplicadas pela API ao iniciar.
 
-```text
-CPF e senha validos -> API Gateway -> Lambda Auth CPF + Senha -> JWT CLIENTE -> API Gateway -> API Spring no EKS -> consulta protegida das proprias OS
+Um arquivo `.env` local pode fornecer `POSTGRES_USER`, `POSTGRES_PASSWORD` e `JWT_SECRET`, sem versionar segredos. Mantenha `POSTGRES_DB=oficina`: a URL JDBC do serviço app está fixada nesse nome no Compose. Alterar somente `POSTGRES_DB` não atualiza essa URL. As credenciais devem corresponder às já usadas para inicializar o volume.
+
+### Aplicação pelo Maven e somente PostgreSQL pelo Compose
+
+Pré-requisitos: JDK 17, Maven e Docker. Se a aplicação do Compose estiver ativa, encerre apenas esse serviço:
+
+```sh
+docker compose stop app
+docker compose up -d db
 ```
 
-A collection usa o endpoint oficial de homologacao:
+Configure o processo Maven para acessar a porta publicada do banco. Exemplo em PowerShell, depois de definir `POSTGRES_USER`, `POSTGRES_PASSWORD` e `JWT_SECRET` no ambiente do terminal:
 
-```text
-https://vqgo7dwgqj.execute-api.us-east-1.amazonaws.com
-```
-
-CPF de massa usado como evidencia:
-
-```text
-52398614808
-```
-
-Esse CPF pertence a massa carregada pelas migrations, foi corrigido pela migration `V15__corrigir_documentos_clientes_seed.sql` e recebeu hash de senha pela migration `V17__adicionar_senha_hash_clientes.sql`.
-
-Senha de homologacao usada apenas para evidencia:
-
-```text
-Cliente@123
-```
-
-A senha nao e armazenada em texto puro. A migration grava somente o hash bcrypt na coluna `clientes.senha_hash`.
-
-Requests da pasta `Gateway JWT Cliente`:
-
-| Ordem | Request | Resultado esperado |
-|---|---|---|
-| 1 | `Autenticar cliente por CPF e senha` | `200 OK`, `accessToken` preenchido e claim `tipo=CLIENTE` |
-| 2 | `Negar autenticacao sem senha` | `400 Bad Request` |
-| 3 | `Negar autenticacao com senha incorreta` | `401 Unauthorized` |
-| 4 | `Consultar propria OS por numero com JWT` | `200 OK`, acesso permitido quando CPF da OS corresponde ao `sub` do token |
-| 5 | `Negar consulta de OS por numero sem token` | `401 Unauthorized` |
-| 6 | `Bloquear consulta de OS de outro cliente por numero` | `403 Forbidden` |
-| 7 | `Bloquear abertura de OS por cliente externo` | `403 Forbidden` |
-
-A collection captura automaticamente:
-
-- `accessToken` retornado pela Lambda;
-- `numeroOrdemServico` usado nas chamadas protegidas.
-
-Fluxo de uso no Postman:
-
-1. Importar a collection.
-2. Executar o request `Autenticar cliente por CPF e senha`.
-3. Executar os requests de acesso permitido e negado.
-4. Executar `Bloquear abertura de OS por cliente externo` para evidenciar que cliente externo nao cria OS.
-
-Evidencias aceitas para apresentacao:
-
-- print do `POST /auth/cpf` com CPF e senha retornando `200 OK`;
-- print do `POST /auth/cpf` sem senha retornando `400`;
-- print do `POST /auth/cpf` com senha incorreta retornando `401`;
-- print do token decodificado contendo `tipo=CLIENTE`, `clienteId`, `sub`, `iss` e `aud`;
-- print da consulta da propria OS por numero com `200 OK`;
-- print da mesma rota sem token com `401`;
-- print da tentativa de consultar OS de outro CPF por numero com `403`;
-- print da tentativa de abertura de OS completa com token de cliente retornando `403`.
-
-## Rotas Protegidas Por JWT Interno
-
-As demais rotas operacionais permanecem protegidas por JWT interno e roles da oficina:
-
-- `ATENDENTE`
-- `MECANICO`
-- `GESTOR`
-
-Exemplos:
-
-| Grupo | Perfis |
-|---|---|
-| Gestao de clientes | `ATENDENTE`, `GESTOR` |
-| Gestao de veiculos | `ATENDENTE`, `GESTOR` |
-| Criacao e acompanhamento operacional de OS | `ATENDENTE`, `MECANICO`, `GESTOR`, conforme rota |
-| Catalogo de pecas e servicos | `GESTOR` ou perfis ja definidos no `SecurityConfig` |
-| Metricas internas | JWT interno conforme configuracao da aplicacao |
-
-## Variaveis De Ambiente
-
-Variaveis obrigatorias para execucao em nuvem:
-
-| Nome | Finalidade |
-|---|---|
-| `SPRING_DATASOURCE_URL` | URL JDBC do PostgreSQL gerenciado |
-| `SPRING_DATASOURCE_USERNAME` | Usuario do banco |
-| `SPRING_DATASOURCE_PASSWORD` | Senha do banco |
-| `JWT_SECRET` | Segredo do JWT interno de funcionarios |
-| `CLIENT_JWT_SECRET` | Segredo do JWT externo de clientes, igual ao usado pela Lambda |
-| `CLIENT_JWT_ISSUER` | Issuer esperado para JWT externo, padrao `oficina-dgcar-auth-lambda` |
-| `CLIENT_JWT_AUDIENCE` | Audience esperada para JWT externo, padrao `oficina-dgcar-api` |
-| `NEW_RELIC_LICENSE_KEY` | Chave do New Relic quando observabilidade estiver habilitada |
-| `SMTP_USERNAME` | Usuario SMTP quando envio real estiver habilitado |
-| `SMTP_PASSWORD` | Senha SMTP quando envio real estiver habilitado |
-
-Secrets esperados no GitHub:
-
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `SPRING_DATASOURCE_USERNAME`
-- `SPRING_DATASOURCE_PASSWORD`
-- `JWT_SECRET`
-- `CLIENT_JWT_SECRET`
-- `NEW_RELIC_LICENSE_KEY`
-- `SMTP_USERNAME`
-- `SMTP_PASSWORD`
-
-## Execucao Local
-
-Subir dependencias locais:
-
-```bash
-docker compose up -d
-```
-
-Executar a aplicacao:
-
-```bash
+```powershell
+$env:SPRING_DATASOURCE_URL = 'jdbc:postgresql://localhost:5434/oficina'
+$env:SPRING_DATASOURCE_USERNAME = $env:POSTGRES_USER
+$env:SPRING_DATASOURCE_PASSWORD = $env:POSTGRES_PASSWORD
+$env:OFICINA_EMAIL_ENABLED = 'false'
+$env:OFICINA_EMAIL_MODE = 'LOG'
+$env:PAGAMENTO_GATEWAY_APPROVAL_RATE = '1.0'
+$env:PAGAMENTO_GATEWAY_LATENCY_MS = '0'
 mvn spring-boot:run
 ```
 
-Executar testes:
+O Maven não carrega automaticamente o `.env` do Compose. Sem sobrescrita, `application.yml` aponta para PostgreSQL em `localhost:5432`; por isso a URL acima é necessária para usar o banco publicado em 5434. Use as mesmas credenciais configuradas no serviço db.
 
-```bash
-mvn test
+O perfil `dev` usa H2 em memória, desabilita Flyway e recria o schema; não equivale ao ambiente PostgreSQL com migrations e massa persistida.
+
+### Configuração funcional
+
+| Configuração | Finalidade |
+|---|---|
+| `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` | Conexão PostgreSQL |
+| `JWT_SECRET` | Assinatura do JWT interno; configure uma chave adequada para HS256 |
+| `CLIENT_JWT_SECRET`, `CLIENT_JWT_ISSUER`, `CLIENT_JWT_AUDIENCE` | Validação do JWT externo; o segredo deve corresponder ao da Lambda no mesmo ambiente |
+| `OFICINA_PUBLIC_BASE_URL` | Base dos links de notificação; localmente pode ser `http://localhost:8080` |
+| `OFICINA_EMAIL_ENABLED`, `OFICINA_EMAIL_MODE` | Habilitação de notificações e escolha de LOG ou SMTP |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` | Necessários conforme o servidor SMTP utilizado |
+| `PAGAMENTO_GATEWAY_APPROVAL_RATE`, `PAGAMENTO_GATEWAY_LATENCY_MS` | Aprovação e latência do gateway simulado |
+| `OFICINA_DASHBOARD_MASSA_HISTORICA_ENABLED` | Habilita o recurso de massa histórica quando necessário ao roteiro de validação |
+
+No Compose atual, `CLIENT_JWT_*` e `OFICINA_PUBLIC_BASE_URL` não são repassados ao serviço app. Defini-los apenas no `.env` não os injeta no container; o teste integrado com a Lambda exige configurá-los no ambiente efetivo da API. A Lambda também não é iniciada pelo Compose.
+
+## Validação e contratos
+
+```sh
+mvn clean test
 ```
 
-## Deploy Manual Em Kubernetes
+Docker deve estar disponível para os testes PostgreSQL com Testcontainers. Confira `target/surefire-reports` e `target/site/jacoco`; testes unitários não substituem a validação integrada pelo Gateway.
 
-Foi implementado deploy manual no workflow `App CI/CD - Build, Test and Deploy`.
+- [Swagger UI local](http://localhost:8080/swagger-ui.html).
+- [OpenAPI JSON local](http://localhost:8080/api-docs).
+- [Readiness local](http://localhost:8080/actuator/health/readiness).
+- [Collection Postman](postman/Oficina-DGCar-Tech-Challenge-Fase-3.postman_collection.json).
+- [Roteiro do dashboard de negócio](postman/VALIDACAO-DASHBOARD-NEGOCIO.md).
 
-O botao `Run workflow` fica disponivel no GitHub Actions apos o merge da alteracao que adiciona `workflow_dispatch`.
+Em homolog e prod, substitua a base local pelo `OFICINA_PUBLIC_BASE_URL` do ambiente: Swagger em `/swagger-ui.html`, OpenAPI em `/api-docs` e readiness em `/actuator/health/readiness`. O provisionamento publica a base do Gateway; o ID não é fixado neste README.
 
-Fluxo executado pelo workflow:
+O login interno é `POST /api/auth/login`. O contrato externo é `POST /auth/cpf` pelo Gateway, implementado pela Lambda. JWT CLIENTE permite consultar as próprias OS por `/api/ordens-servico/numero/{numero}` e `/api/ordens-servico/numero/{numero}/status`, conforme as regras de autorização.
 
-1. Executa `mvn clean test`.
-2. Gera imagem Docker.
-3. Publica a imagem no Amazon ECR.
-4. Atualiza o kubeconfig do EKS.
-5. Cria ou atualiza namespace, ConfigMap, Secret, Deployment, Service e HPA.
-6. Aguarda o rollout do deployment.
-7. Coleta o endpoint publicado pelo Service `LoadBalancer`.
-8. Publica `API_BACKEND_URL` no environment correspondente do repo `oficina-dgcar-infra-k8s`.
-9. Exibe pods, service, HPA e URL do LoadBalancer.
+### Collection funcional e carga concorrente
 
-Execucao pelo GitHub:
+Importe a collection e configure `baseUrl` e as variáveis de autenticação para o ambiente. Execute as pastas funcionais na ordem, verificando as asserções. A rota `/auth/cpf` exige Gateway e Lambda; não funciona somente com a API local.
 
-```text
-Actions -> App CI/CD - Build, Test and Deploy -> Run workflow
-```
+O Runner funcional sequencial valida contratos e gera massa, mas não comprova carga concorrente ou escala do HPA. O ensaio automatizado versionado usa k6 no repositório de infraestrutura; consulte [VALIDACAO-HPA.md](https://github.com/techdgconsulting/oficina-dgcar-infra-k8s/blob/homolog/README.md#hpa-e-capacidade).
 
-Inputs:
+O [roteiro de HPA e falhas de processamento no Postman](postman/VALIDACAO-POSTMAN-OBSERVABILIDADE.md) acompanha a collection. Reimporte o arquivo atualizado antes de usar essas pastas.
 
-| Campo | Valor |
-|---|---|
-| `environment` | `homolog` ou `prod` |
+## Análise de vulnerabilidades com Trivy
 
-O deploy real foi mantido apenas via execucao manual e usa GitHub Environments. Assim, `homolog` e `prod` continuam exigindo aprovacao antes da execucao do job de deploy.
+### Versões adotadas nas correções
 
-Secrets obrigatorios no environment escolhido:
+O [pom.xml](pom.xml) define Spring Boot **4.0.8**, Jackson BOM **3.1.7**, Jackson 2 BOM **2.22.3**, Tomcat **11.0.27** e SpringDoc OpenAPI **3.0.3**. Commons Lang **3.18.0** e driver PostgreSQL **42.7.12** permanecem explicitados no gerenciamento de dependências. O parent gerencia as demais versões.
 
-| Nome | Origem |
-|---|---|
-| `AWS_ACCESS_KEY_ID` | Usuario IAM usado pelo GitHub Actions |
-| `AWS_SECRET_ACCESS_KEY` | Usuario IAM usado pelo GitHub Actions |
-| `SPRING_DATASOURCE_USERNAME` | Usuario do RDS PostgreSQL |
-| `SPRING_DATASOURCE_PASSWORD` | Senha do RDS PostgreSQL |
-| `JWT_SECRET` | Segredo do JWT interno |
-| `CLIENT_JWT_SECRET` | Mesmo segredo usado pela Lambda Auth CPF + Senha |
-| `GH_AUTOMATION_TOKEN` | Token GitHub com permissao para gravar secrets no repo `oficina-dgcar-infra-k8s` |
-| `SMTP_USERNAME` | Usuario SMTP do Mailtrap quando e-mail esta em modo `SMTP` |
-| `SMTP_PASSWORD` | Senha SMTP do Mailtrap quando e-mail esta em modo `SMTP` |
+A migração ajusta os starters Web MVC, Flyway e testes, além dos artefatos Testcontainers. As escolhas e o escopo das evidências estão nas [ADRs de stack e segurança](https://github.com/techdgconsulting/oficina-dgcar-docs/tree/homolog/docs/adr), especialmente ADR-008, ADR-009 e ADR-012.
 
-O `GH_AUTOMATION_TOKEN` fica configurado no mesmo environment usado pelo deploy da API. Esse token permite que o workflow grave `API_BACKEND_URL` no repo `oficina-dgcar-infra-k8s` depois que o Service `LoadBalancer` publica o endpoint HTTP da aplicacao.
+### Relatórios disponíveis
 
-Variaveis obrigatorias no environment escolhido:
+Os relatórios de 17/10/2026 estão em `docs/ReportTRIVY`:
 
-| Nome | Origem |
-|---|---|
-| `AWS_REGION` | Regiao AWS, por exemplo `us-east-1` |
-| `ECR_REPOSITORY` | Nome ou URL do repositorio ECR da aplicacao |
-| `EKS_CLUSTER_NAME` | Nome do cluster EKS |
-| `SPRING_DATASOURCE_URL` | Output `spring_datasource_url` do repo `oficina-dgcar-infra-db` |
+| Análise | Relatório HTML | Dados JSON | HIGH | CRITICAL |
+|---|---|---|---|---|
+| Dependências Maven do `pom.xml` | [Dependências](docs/ReportTRIVY/trivy-dependencies-report.html) | [JSON das dependências](docs/ReportTRIVY/trivy-dependencies-report.json) | 0 | 0 |
+| Imagem Docker `oficina-dgcar-api:security-validation` | [Imagem Docker](docs/ReportTRIVY/trivy-image-report.html) | [JSON da imagem](docs/ReportTRIVY/trivy-image-report.json) | 0 | 0 |
 
-O workflow tambem aceita `AWS_REGION`, `ECR_REPOSITORY`, `EKS_CLUSTER_NAME` e `SPRING_DATASOURCE_URL` como Secrets. Quando os dois existem, o valor em Secret tem prioridade.
+A análise usa Trivy 0.73.0 e o filtro `HIGH,CRITICAL`. O relatório da imagem cobre pacotes do sistema operacional e bibliotecas Java embarcadas; o relatório Maven cobre as dependências resolvidas pelo scanner a partir do POM. Esses comandos não analisam segredos nem configurações de infraestrutura. O resultado corresponde à imagem local e à base de vulnerabilidades usada na execução; não comprova a versão implantada em homolog ou prod.
 
-Ao final do deploy, o workflow consulta o Service `oficina-api`, monta a URL HTTP do LoadBalancer e grava automaticamente o secret `API_BACKEND_URL` no environment `homolog` ou `prod` do repo `oficina-dgcar-infra-k8s`. Com isso, o passo seguinte do `infra-k8s` cria a rota proxy `ANY /{proxy+}` do API Gateway sem cadastro manual desse endpoint.
+### Gerar os relatórios JSON
 
-Origem dos valores:
-
-| Valor no repo `oficina-dgcar-api` | Origem operacional |
-|---|---|
-| `AWS_REGION` | Regiao usada pelos repos de infraestrutura, atualmente `us-east-1` |
-| `ECR_REPOSITORY` | Output `ecr_repository_url` do repo `oficina-dgcar-infra-k8s`, ou apenas o nome do ECR se preferir |
-| `EKS_CLUSTER_NAME` | Output `eks_cluster_name` do repo `oficina-dgcar-infra-k8s` |
-| `SPRING_DATASOURCE_URL` | Output `spring_datasource_url` do repo `oficina-dgcar-infra-db` |
-| `SPRING_DATASOURCE_USERNAME` | Mesmo valor usado como `DB_USERNAME`/usuario do RDS no repo `oficina-dgcar-infra-db` |
-| `SPRING_DATASOURCE_PASSWORD` | Mesmo valor usado como `DB_PASSWORD`/senha do RDS no repo `oficina-dgcar-infra-db` |
-| `CLIENT_JWT_SECRET` | Mesmo valor configurado no environment do repo `oficina-dgcar-auth-lambda` |
-| `JWT_SECRET` | Segredo interno da API; pode reaproveitar o valor do repositorio historico quando ainda estiver valido |
-
-Comandos para consultar os outputs no GitHub Actions:
-
-```bash
-# No repo oficina-dgcar-infra-k8s, apos o apply de homolog:
-terraform output ecr_repository_url
-terraform output eks_cluster_name
-
-# No repo oficina-dgcar-infra-db, apos o apply de homolog:
-terraform output spring_datasource_url
-```
-
-Configuracao do Environment `homolog` via GitHub CLI:
+Execute na raiz deste repositório, em PowerShell, com Docker Desktop iniciado. A análise do POM utiliza o cache Maven em `$env:USERPROFILE\.m2\repository`; execute `mvn verify` antes para resolver as dependências e validar a aplicação. O volume `dgcar-trivy-cache` reaproveita as bases do scanner entre execuções.
 
 ```powershell
-$repo = "techdgconsulting/oficina-dgcar-api"
-$envName = "homolog"
-$region = "us-east-1"
+$trivy = 'aquasec/trivy:0.73.0'
+$reports = (New-Item -ItemType Directory -Force -Path 'docs/ReportTRIVY').FullName
 
-gh variable set AWS_REGION --repo $repo --env $envName --body $region
-gh variable set ECR_REPOSITORY --repo $repo --env $envName --body "<ecr_repository_url>"
-gh variable set EKS_CLUSTER_NAME --repo $repo --env $envName --body "<eks_cluster_name>"
-gh variable set SPRING_DATASOURCE_URL --repo $repo --env $envName --body "<spring_datasource_url>"
-gh variable set CLIENT_JWT_ISSUER --repo $repo --env $envName --body "oficina-dgcar-auth-lambda"
-gh variable set CLIENT_JWT_AUDIENCE --repo $repo --env $envName --body "oficina-dgcar-api"
-gh variable set OFICINA_EMAIL_ENABLED --repo $repo --env $envName --body "true"
-gh variable set OFICINA_EMAIL_MODE --repo $repo --env $envName --body "SMTP"
-gh variable set OFICINA_EMAIL_REMETENTE --repo $repo --env $envName --body "no-reply@dgcar.local"
-gh variable set SMTP_HOST --repo $repo --env $envName --body "sandbox.smtp.mailtrap.io"
-gh variable set SMTP_PORT --repo $repo --env $envName --body "587"
-gh variable set SMTP_AUTH --repo $repo --env $envName --body "true"
-gh variable set SMTP_STARTTLS_ENABLE --repo $repo --env $envName --body "true"
-gh variable set MANAGEMENT_HEALTH_MAIL_ENABLED --repo $repo --env $envName --body "false"
+docker build -t oficina-dgcar-api:security-validation .
+if ($LASTEXITCODE -ne 0) { throw 'Falha no build da imagem.' }
+
+docker run --rm `
+  --mount 'type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock' `
+  --mount 'type=volume,source=dgcar-trivy-cache,target=/root/.cache/trivy' `
+  --mount "type=bind,source=$reports,target=/reports" `
+  $trivy image `
+  --scanners vuln --timeout 5m --severity HIGH,CRITICAL `
+  --format json --output /reports/trivy-image-report.json `
+  oficina-dgcar-api:security-validation
+if ($LASTEXITCODE -ne 0) { throw 'Falha na análise da imagem.' }
+
+docker run --rm `
+  --mount "type=bind,source=$($PWD.Path)\pom.xml,target=/project/pom.xml,readonly" `
+  --mount "type=bind,source=$env:USERPROFILE\.m2\repository,target=/root/.m2/repository,readonly" `
+  --mount 'type=volume,source=dgcar-trivy-cache,target=/root/.cache/trivy' `
+  --mount "type=bind,source=$reports,target=/reports" `
+  $trivy fs `
+  --scanners vuln --timeout 3m --severity HIGH,CRITICAL `
+  --format json --output /reports/trivy-dependencies-report.json `
+  /project
+if ($LASTEXITCODE -ne 0) { throw 'Falha na análise das dependências.' }
 ```
 
-Secrets cadastrados via GitHub CLI:
+O primeiro download das bases pode demorar. Uma execução encerrada com `FATAL` ou timeout não produz um relatório válido. Os comandos mantêm o código de saída padrão do Trivy: encontrar vulnerabilidades não reprova automaticamente a execução; confira os achados no relatório.
+
+### Converter os JSONs para HTML
+
+A conversão usa os JSONs já gerados e não repete a análise:
 
 ```powershell
-$repo = "techdgconsulting/oficina-dgcar-api"
-$envName = "homolog"
+$trivy = 'aquasec/trivy:0.73.0'
+$reports = (Resolve-Path 'docs/ReportTRIVY').Path
 
-$awsAccessKeyId | gh secret set AWS_ACCESS_KEY_ID --repo $repo --env $envName
-$awsSecretAccessKey | gh secret set AWS_SECRET_ACCESS_KEY --repo $repo --env $envName
-$springDatasourceUsername | gh secret set SPRING_DATASOURCE_USERNAME --repo $repo --env $envName
-$springDatasourcePassword | gh secret set SPRING_DATASOURCE_PASSWORD --repo $repo --env $envName
-$clientJwtSecret | gh secret set CLIENT_JWT_SECRET --repo $repo --env $envName
-$jwtSecret | gh secret set JWT_SECRET --repo $repo --env $envName
-$ghAutomationToken | gh secret set GH_AUTOMATION_TOKEN --repo $repo --env $envName
-$smtpUsername | gh secret set SMTP_USERNAME --repo $repo --env $envName
-$smtpPassword | gh secret set SMTP_PASSWORD --repo $repo --env $envName
+foreach ($name in @('trivy-image-report', 'trivy-dependencies-report')) {
+    docker run --rm `
+      --mount "type=bind,source=$reports,target=/reports" `
+      $trivy convert `
+      --format template --template '@/contrib/html.tpl' `
+      --output "/reports/$name.html" "/reports/$name.json"
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao converter $name." }
+}
 ```
 
-No ambiente `homolog`, a configuracao foi cadastrada com os valores coletados dos recursos AWS provisionados:
+Abra os arquivos `.html` no navegador. No GitHub, o link exibe o arquivo; para visualizar a página formatada, faça o download e abra localmente. O Trivy é executado manualmente neste procedimento; não há etapa Trivy configurada nos workflows atuais da API.
 
-| Item | Valor publico cadastrado |
+## Relatório OWASP ZAP
+
+O [relatório de 19/10/2026](docs/ReportOWASP/2026-10-19-ZAP-Report-.html) registra a análise local da API. Os arquivos de estilo e imagens que acompanham o HTML ficam no mesmo diretório. Para visualizar o relatório formatado, baixe o HTML junto da pasta de recursos e abra no navegador.
+
+O resultado corresponde ao alvo, à autenticação e às regras utilizados nessa execução; não comprova o estado de homolog ou prod.
+
+## CI/CD e deploy
+
+O workflow [app-cd.yml](.github/workflows/app-cd.yml) tem estes gatilhos:
+
+| Evento | Execução |
 |---|---|
-| `AWS_REGION` | `us-east-1` |
-| `ECR_REPOSITORY` | `857145323352.dkr.ecr.us-east-1.amazonaws.com/oficina-dgcar/oficina-api` |
-| `EKS_CLUSTER_NAME` | `oficina-dgcar-homolog-eks` |
-| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://oficina-dgcar-homolog-postgres.curuqcwkaa6w.us-east-1.rds.amazonaws.com:5432/oficina` |
-| `OFICINA_EMAIL_ENABLED` | `true` |
-| `OFICINA_EMAIL_MODE` | `SMTP` |
-| `OFICINA_EMAIL_REMETENTE` | `no-reply@dgcar.local` |
-| `SMTP_HOST` | `sandbox.smtp.mailtrap.io` |
-| `SMTP_PORT` | `587` |
-| `SMTP_AUTH` | `true` |
-| `SMTP_STARTTLS_ENABLE` | `true` |
-| `MANAGEMENT_HEALTH_MAIL_ENABLED` | `false` |
+| PR para `homolog` ou `main` | `mvn clean test` e build da imagem, sem deploy |
+| Merge em `homolog` ou `main` | Testes e solicitação automática de deploy à fila central; filtro em código, build, workflow e `scripts/ci/**` |
+| `workflow_dispatch` | Reexecução manual encaminhada à mesma fila; `homolog` usa a branch `homolog` e `prod` usa `main` |
 
-Os secrets `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` e `CLIENT_JWT_SECRET` foram copiados da configuracao da Lambda `oficina-dgcar-homolog-auth-cpf` sem exposicao dos valores no terminal. O `JWT_SECRET` interno da API foi gerado especificamente para o environment `homolog`.
+Push em `homolog` seleciona homolog; push em `main` seleciona prod. Alterações apenas em README ou Postman não atendem ao filtro de push desse workflow. O workflow [ci.yml](.github/workflows/ci.yml) separado verifica a estrutura do repositório em PRs e pushes dessas branches.
 
-As credenciais `SMTP_USERNAME` e `SMTP_PASSWORD` devem ser cadastradas no environment `homolog` com os dados SMTP da inbox Mailtrap. O repositorio historico possui esses secrets cadastrados, mas o GitHub nao permite consultar seus valores depois da criacao.
+Para reexecutar o deploy: **Actions → App CI/CD - Build, Test and Deploy → Run workflow**, selecione a referência de código e `environment`. O pedido entra no coordenador de infra-k8s, que despacha o worker com o SHA de origem e o identificador da execução pai. Esses campos são reservados à automação. O ambiente deve possuir EKS, ECR e banco acessíveis.
 
-Variaveis opcionais no environment escolhido:
+O deploy publica a imagem no ECR, conecta ao EKS, aplica namespace, ConfigMap, Secret, Deployment, Service e HPA, reinicia o Deployment e aguarda o rollout. Ao final, publica `API_BACKEND_URL` no environment correspondente de infra-k8s.
 
-| Nome | Padrao |
-|---|---|
-| `CLIENT_JWT_ISSUER` | `oficina-dgcar-auth-lambda` |
-| `CLIENT_JWT_AUDIENCE` | `oficina-dgcar-api` |
-| `OFICINA_EMAIL_ENABLED` | `true` em homolog com Mailtrap |
-| `OFICINA_EMAIL_MODE` | `SMTP` em homolog com Mailtrap |
-| `OFICINA_EMAIL_REMETENTE` | `no-reply@dgcar.local` |
-| `SMTP_HOST` | `sandbox.smtp.mailtrap.io` em homolog com Mailtrap |
-| `SMTP_PORT` | `587` |
-| `SMTP_AUTH` | `true` |
-| `SMTP_STARTTLS_ENABLE` | `true` |
-| `MANAGEMENT_HEALTH_MAIL_ENABLED` | `false` |
-| `PAGAMENTO_GATEWAY_APPROVAL_RATE` | `1.0` |
-| `PAGAMENTO_GATEWAY_LATENCY_MS` | `0` |
+Configure por environment: credenciais AWS, `AWS_REGION`, `ECR_REPOSITORY`, `EKS_CLUSTER_NAME`, conexão `SPRING_DATASOURCE_*`, `JWT_SECRET`, `CLIENT_JWT_SECRET`, `GH_AUTOMATION_TOKEN` e `NEW_RELIC_LICENSE_KEY`. Configure SMTP conforme o modo utilizado. O workflow aceita secrets ou variables para os destinos indicados no código, com precedência dos secrets; segredos de autenticação permanecem em secrets. `OFICINA_PUBLIC_BASE_URL` é obrigatório em nuvem e não pode apontar para localhost. Regras de aprovação dependem da configuração dos GitHub Environments.
 
-Validacao apos deploy:
+## Observabilidade
 
-```bash
-kubectl get pods -n oficina
-kubectl logs -n oficina deployment/oficina-api
-kubectl get svc oficina-api -n oficina
-```
+O Java Agent fornece APM e os eventos customizados de OS. Os logs JSON saem no stdout e chegam ao New Relic pelo coletor Kubernetes; o workflow desabilita forwarding e decoração textual do agente. `correlationId` é atributo do log e da transação, com `trace.id` e `span.id` quando disponíveis.
 
-O deploy da API tambem executa as migrations Flyway na inicializacao da aplicacao. A Lambda Auth CPF + Senha depende dessas tabelas e dados para retornar JWT no endpoint `POST /auth/cpf`.
+`NEW_RELIC_APP_NAME` usa o padrão `oficina-dgcar-api-<ambiente>` e `NEW_RELIC_ENVIRONMENT` identifica o ambiente. `JAVA_TOOL_OPTIONS` carrega `/app/newrelic/newrelic.jar` no deploy. No Compose, o agente não é ativado por padrão e não há coletor Kubernetes; logs locais não comprovam ingestão no New Relic.
 
-### Modelo De Senha Do Cliente Externo
+Os roteiros completos estão na [documentação central](https://github.com/techdgconsulting/oficina-dgcar-docs), em `docs/observabilidade/`, e na infraestrutura em [DASHBOARD-OPERACIONAL.md](https://github.com/techdgconsulting/oficina-dgcar-infra-k8s/blob/homolog/README.md#atualização-de-dashboards-e-observabilidade). Consulte a revisão correspondente à implantação; as alterações documentais locais seguem o estado do checkout até serem publicadas.
 
-A migration `V17__adicionar_senha_hash_clientes.sql` adiciona a coluna `clientes.senha_hash` para suportar autenticacao externa por CPF e senha na Lambda.
+A origem da extração permanece em [ORIGEM_HISTORICA.md](ORIGEM_HISTORICA.md).
 
-Regras implementadas:
-
-- `senha_hash` armazena somente hash bcrypt.
-- A senha do cliente nao aparece em `ClienteRequest`.
-- A senha do cliente nao aparece em `ClienteResponse`.
-- A API nao autentica cliente externo diretamente; ela apenas valida o JWT externo emitido pela Lambda.
-- Clientes criados sem processo de definicao de senha nao autenticam na Lambda ate receberem hash valido.
-
-## Validacoes Realizadas
-
-Foi executada a suite completa de testes:
-
-```text
-Tests run: 366, Failures: 0, Errors: 0, Skipped: 0
-All coverage checks have been met.
-BUILD SUCCESS
-```
-
-Foram adicionadas validacoes automatizadas para:
-
-- JWT externo `CLIENTE` com issuer e audience validos.
-- Rejeicao de JWT externo com audience invalida.
-- Autenticacao no filtro Spring Security com role `CLIENTE`.
-- Propagacao de `clienteId` nos detalhes de autenticacao.
-- Separacao entre JWT interno de funcionarios e JWT externo de cliente.
-
-## Branches E Ambientes
-
-- `main`: producao, protegida e sem commits diretos.
-- `homolog`: homologacao.
-- Pull Requests foram mantidos como caminho obrigatorio de merge.
-- GitHub Environments `homolog` e `prod` foram configurados para aprovacao manual antes de deploy.
-
-## Entrega Da API
-
-Foi implementada a validacao do JWT externo de cliente na API Spring Boot.
-
-Foi documentada a classificacao das rotas publicas, rotas protegidas por JWT de cliente e rotas protegidas por JWT interno.
-
-O fluxo externo de cliente consulta a OS por numero legivel e valida o CPF da OS contra o `sub` do JWT `CLIENTE`, sem expor `clienteId` como entrada do cliente.
-
-## Origem Historica
-
-A extracao inicial foi realizada a partir do repositorio historico.
-
-Artefatos extraidos:
-
-- `src/**`
-- `pom.xml`
-- `Dockerfile`
-- `docker-compose.yml`
-- `api-requests.http`
-- `postman/**`
-- `allure-report.ps1`
-- `docs/ReportOWASP/**`
-- `docs/ReportTRIVY/**`
-- `.github/workflows/app-cd.yml`
-
-O commit de origem esta registrado em [`ORIGEM_HISTORICA.md`](./ORIGEM_HISTORICA.md).
+A fila por ambiente serializa API, Lambda, banco e plataforma com provisionamento e remoção. O deploy verifica o coordenador antes de acessar a AWS e usa o mesmo SHA nos testes e na imagem. PRs para `main` precisam conter o histórico de `homolog`. A decisão está na [ADR-020](https://github.com/techdgconsulting/oficina-dgcar-docs/blob/homolog/docs/adr/ADR-020-promocao-e-deploy-automatico.md).

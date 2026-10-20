@@ -21,6 +21,8 @@ public class OrdemDeServico {
     @Builder.Default
     private LocalDateTime dataCriacao = LocalDateTime.now();
     private LocalDateTime dataFinalizacao;
+    @Builder.Default
+    private LocalDateTime dataEntradaStatus = LocalDateTime.now();
     private String atendenteNome;
     private Long clienteId;
     private Cliente cliente;
@@ -77,7 +79,7 @@ public class OrdemDeServico {
 
     public void avancarParaDiagnostico() {
         validarTransicao(StatusOS.RECEBIDA, StatusOS.EM_DIAGNOSTICO);
-        this.status = StatusOS.EM_DIAGNOSTICO;
+        alterarStatus(StatusOS.EM_DIAGNOSTICO);
     }
 
     public void aguardarAprovacao() {
@@ -86,35 +88,40 @@ public class OrdemDeServico {
                 "Transição inválida para AGUARDANDO_APROVACAO. Status atual: " + status
             );
         }
-        this.status = StatusOS.AGUARDANDO_APROVACAO;
+        alterarStatus(StatusOS.AGUARDANDO_APROVACAO);
     }
 
     public void aprovarEIniciarExecucao() {
         validarTransicao(StatusOS.AGUARDANDO_APROVACAO, StatusOS.EM_EXECUCAO);
-        this.status = StatusOS.EM_EXECUCAO;
+        alterarStatus(StatusOS.EM_EXECUCAO);
     }
 
     public void finalizar() {
         validarTransicao(StatusOS.EM_EXECUCAO, StatusOS.FINALIZADA);
-        this.status = StatusOS.FINALIZADA;
+        alterarStatus(StatusOS.FINALIZADA);
         this.dataFinalizacao = LocalDateTime.now();
     }
 
     public void aguardarRetirada() {
         validarTransicao(StatusOS.FINALIZADA, StatusOS.AGUARDANDO_RETIRADA);
-        this.status = StatusOS.AGUARDANDO_RETIRADA;
+        alterarStatus(StatusOS.AGUARDANDO_RETIRADA);
     }
 
     public void entregar() {
         validarTransicao(StatusOS.AGUARDANDO_RETIRADA, StatusOS.ENTREGUE);
-        this.status = StatusOS.ENTREGUE;
+        alterarStatus(StatusOS.ENTREGUE);
     }
 
     public void cancelar() {
         if (status == StatusOS.FINALIZADA || status == StatusOS.ENTREGUE) {
             throw new IllegalStateException("Nao e possivel cancelar uma OS finalizada ou entregue");
         }
-        this.status = StatusOS.CANCELADA;
+        alterarStatus(StatusOS.CANCELADA);
+    }
+
+    private void alterarStatus(StatusOS novoStatus) {
+        this.status = novoStatus;
+        this.dataEntradaStatus = LocalDateTime.now();
     }
 
     private void validarTransicao(StatusOS esperado, StatusOS novo) {

@@ -38,6 +38,7 @@ import br.com.oficina.application.port.out.EntregaRepositoryPort;
 import br.com.oficina.application.port.out.ExecucaoRepositoryPort;
 import br.com.oficina.application.port.out.OrcamentoRepositoryPort;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.PagamentoGatewayPort;
 import br.com.oficina.application.port.out.PagamentoRepositoryPort;
 import br.com.oficina.application.port.out.PecaRepositoryPort;
@@ -100,31 +101,39 @@ public class OrdemDeServicoUseCase implements
     private final EncerramentoRepositoryPort encerramentoRepository;
     private final PagamentoGatewayPort pagamentoGateway;
     private final NotificarStatusOrdemServicoInputPort notificarStatusOrdemServicoInputPort;
+    private final OrdemServicoMetricsPort metricsPort;
 
     @Override
     public OrdemServicoResult execute(CriarOrdemServicoCommand command) {
-        var cliente = clienteRepository.buscarPorId(command.clienteId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente nao encontrado"));
-        var veiculo = veiculoRepository.buscarPorId(command.veiculoId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Veiculo nao encontrado"));
+        try {
+            var cliente = clienteRepository.buscarPorId(command.clienteId())
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente nao encontrado"));
+            var veiculo = veiculoRepository.buscarPorId(command.veiculoId())
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Veiculo nao encontrado"));
 
-        var os = OrdemDeServico.criar(cliente, veiculo);
-        os.atribuirAtendente(command.atendenteNome());
+            var os = OrdemDeServico.criar(cliente, veiculo);
+            os.atribuirAtendente(command.atendenteNome());
 
-        if (command.itens() != null && !command.itens().isEmpty()) {
-            for (var itemReq : command.itens()) {
-                os.adicionarItem(montarItem(itemReq));
+            if (command.itens() != null && !command.itens().isEmpty()) {
+                for (var itemReq : command.itens()) {
+                    os.adicionarItem(montarItem(itemReq));
+                }
             }
+
+            os = osRepository.salvar(os);
+            String numero = String.format("OS-%d-%05d", os.getDataCriacao().getYear(), os.getId());
+            os.atribuirNumero(numero);
+            os = osRepository.salvar(os);
+
+            execucaoRepository.salvar(Execucao.criar(os.getId()));
+            metricsPort.registrarOsCriada("simples", os.getStatus(), os.getNumero());
+            metricsPort.registrarSnapshotOperacional(os, cliente, veiculo, null, null);
+            notificarStatus(os);
+            return toResult(os);
+        } catch (RuntimeException ex) {
+            metricsPort.registrarFalhaProcessamento("criar_os", ex);
+            throw ex;
         }
-
-        os = osRepository.salvar(os);
-        String numero = String.format("OS-%d-%05d", os.getDataCriacao().getYear(), os.getId());
-        os.atribuirNumero(numero);
-        os = osRepository.salvar(os);
-
-        execucaoRepository.salvar(Execucao.criar(os.getId()));
-        notificarStatus(os);
-        return toResult(os);
     }
 
     @Override
@@ -165,176 +174,238 @@ public class OrdemDeServicoUseCase implements
 
     @Override
     public OrdemServicoResult execute(IniciarDiagnosticoCommand command) {
-        var os = findById(command.ordemServicoId());
-        os.avancarParaDiagnostico();
-        osRepository.salvar(os);
+        try {
+            var os = findById(command.ordemServicoId());
+            var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
+            var execucao = execucaoRepository.buscarPorOrdemDeServico(command.ordemServicoId())
+                    .orElseGet(() -> Execucao.criar(os.getId()));
+            execucao.iniciarDiagnostico(command.mecanicoNome());
+            os.avancarParaDiagnostico();
+            osRepository.salvar(os);
+            execucaoRepository.salvar(execucao);
 
-        execucaoRepository.buscarPorOrdemDeServico(command.ordemServicoId()).ifPresent(exec -> {
-            exec.iniciarDiagnostico(command.mecanicoNome());
-            execucaoRepository.salvar(exec);
-        });
-
-        notificarStatus(os);
-        return toResult(os);
+            registrarMudancaStatus("iniciar_diagnostico", os, statusAnterior, tempoNoStatusAnterior);
+            notificarStatus(os);
+            return toResult(os);
+        } catch (RuntimeException ex) {
+            metricsPort.registrarFalhaProcessamento("iniciar_diagnostico", ex);
+            throw ex;
+        }
     }
 
     @Override
     public OrcamentoResult execute(GerarOrcamentoCommand command) {
-        var os = findById(command.ordemServicoId());
-        if (os.getItens().isEmpty()) {
-            throw new NegocioException("OS nao tem itens para gerar orcamento");
+        try {
+            var os = findById(command.ordemServicoId());
+            var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
+            if (os.getItens().isEmpty()) {
+                throw new NegocioException("OS nao tem itens para gerar orcamento");
+            }
+            if (os.getStatus() != StatusOS.EM_DIAGNOSTICO && os.getStatus() != StatusOS.EM_EXECUCAO) {
+                throw new IllegalStateException(
+                    "Nao e possivel gerar orcamento no status: " + os.getStatus()
+                    + ". Permitido em: EM_DIAGNOSTICO ou EM_EXECUCAO");
+            }
+
+            BigDecimal valorTotal = os.calcularValorTotal();
+            var orcamento = Orcamento.gerar(command.ordemServicoId(), valorTotal);
+            orcamento.enviar();
+            orcamento = orcamentoRepository.salvar(orcamento);
+
+            os.aguardarAprovacao();
+            osRepository.salvar(os);
+
+            registrarMudancaStatus("gerar_orcamento", os, statusAnterior, tempoNoStatusAnterior);
+            notificarStatus(os);
+            return toOrcamentoResult(orcamento);
+        } catch (RuntimeException ex) {
+            metricsPort.registrarFalhaProcessamento("gerar_orcamento", ex);
+            throw ex;
         }
-        if (os.getStatus() != StatusOS.EM_DIAGNOSTICO && os.getStatus() != StatusOS.EM_EXECUCAO) {
-            throw new IllegalStateException(
-                "Nao e possivel gerar orcamento no status: " + os.getStatus()
-                + ". Permitido em: EM_DIAGNOSTICO ou EM_EXECUCAO");
-        }
-
-        BigDecimal valorTotal = os.calcularValorTotal();
-        var orcamento = Orcamento.gerar(command.ordemServicoId(), valorTotal);
-        orcamento.enviar();
-        orcamento = orcamentoRepository.salvar(orcamento);
-
-        os.aguardarAprovacao();
-        osRepository.salvar(os);
-
-        notificarStatus(os);
-        return toOrcamentoResult(orcamento);
     }
 
     @Override
     public OrdemServicoResult execute(AprovarOrcamentoCommand command) {
-        var os = findById(command.ordemServicoId());
-        var orcamento = orcamentoRepository.buscarAtivoByOrdemDeServico(command.ordemServicoId())
-                .orElseThrow(() -> new NegocioException("Nenhum orcamento ativo encontrado para esta OS"));
-
-        orcamento.aprovar();
-        orcamentoRepository.salvar(orcamento);
-
         try {
-            os.aprovarEIniciarExecucao();
-        } catch (IllegalStateException ex) {
-            throw new NegocioException(ex.getMessage());
-        }
-        baixarEstoquePecas(os);
-        osRepository.salvar(os);
+            var os = findById(command.ordemServicoId());
+            var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
+            var orcamento = orcamentoRepository.buscarAtivoByOrdemDeServico(command.ordemServicoId())
+                    .orElseThrow(() -> new NegocioException("Nenhum orcamento ativo encontrado para esta OS"));
 
-        execucaoRepository.buscarPorOrdemDeServico(command.ordemServicoId()).ifPresent(exec -> {
-            if (exec.getStatus() == StatusExecucao.EM_DIAGNOSTICO) {
-                exec.iniciarServico();
-                execucaoRepository.salvar(exec);
+            orcamento.aprovar();
+            orcamentoRepository.salvar(orcamento);
+
+            try {
+                os.aprovarEIniciarExecucao();
+            } catch (IllegalStateException ex) {
+                throw new NegocioException(ex.getMessage());
             }
-        });
+            baixarEstoquePecas(os);
+            osRepository.salvar(os);
 
-        notificarStatus(os);
-        return toResult(os);
+            execucaoRepository.buscarPorOrdemDeServico(command.ordemServicoId()).ifPresent(exec -> {
+                if (exec.getStatus() == StatusExecucao.EM_DIAGNOSTICO) {
+                    exec.iniciarServico();
+                    execucaoRepository.salvar(exec);
+                }
+            });
+
+            registrarMudancaStatus("aprovar_orcamento", os, statusAnterior, tempoNoStatusAnterior);
+            notificarStatus(os);
+            return toResult(os);
+        } catch (RuntimeException ex) {
+            metricsPort.registrarFalhaProcessamento("aprovar_orcamento", ex);
+            throw ex;
+        }
     }
 
     @Override
     public OrdemServicoResult execute(RejeitarOrcamentoCommand command) {
-        var os = findById(command.ordemServicoId());
-        var orcamento = orcamentoRepository.buscarAtivoByOrdemDeServico(command.ordemServicoId())
-                .orElseThrow(() -> new NegocioException("Nenhum orcamento ativo para rejeitar"));
+        try {
+            var os = findById(command.ordemServicoId());
+            var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
+            var orcamento = orcamentoRepository.buscarAtivoByOrdemDeServico(command.ordemServicoId())
+                    .orElseThrow(() -> new NegocioException("Nenhum orcamento ativo para rejeitar"));
 
-        orcamento.rejeitar();
-        orcamentoRepository.salvar(orcamento);
+            orcamento.rejeitar();
+            orcamentoRepository.salvar(orcamento);
 
-        os.cancelar();
-        osRepository.salvar(os);
+            os.cancelar();
+            osRepository.salvar(os);
 
-        notificarStatus(os);
-        return toResult(os);
+            registrarMudancaStatus("rejeitar_orcamento", os, statusAnterior, tempoNoStatusAnterior);
+            notificarStatus(os);
+            return toResult(os);
+        } catch (RuntimeException ex) {
+            metricsPort.registrarFalhaProcessamento("rejeitar_orcamento", ex);
+            throw ex;
+        }
     }
 
     @Override
     public OrdemServicoResult execute(FinalizarServicoCommand command) {
-        var os = findById(command.ordemServicoId());
-        os.finalizar();
-        osRepository.salvar(os);
+        try {
+            var os = findById(command.ordemServicoId());
+            var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
+            os.finalizar();
+            osRepository.salvar(os);
 
-        execucaoRepository.buscarPorOrdemDeServico(command.ordemServicoId()).ifPresent(exec -> {
-            if (exec.getStatus() == StatusExecucao.AGUARDANDO || exec.getStatus() == StatusExecucao.EM_DIAGNOSTICO) {
-                exec.iniciarServico();
-            }
-            exec.finalizarServico();
-            execucaoRepository.salvar(exec);
-        });
+            execucaoRepository.buscarPorOrdemDeServico(command.ordemServicoId()).ifPresent(exec -> {
+                if (exec.getStatus() == StatusExecucao.AGUARDANDO || exec.getStatus() == StatusExecucao.EM_DIAGNOSTICO) {
+                    exec.iniciarServico();
+                }
+                exec.finalizarServico();
+                execucaoRepository.salvar(exec);
+            });
 
-        notificarStatus(os);
-        return toResult(os);
+            registrarMudancaStatus("finalizar_servico", os, statusAnterior, tempoNoStatusAnterior);
+            notificarStatus(os);
+            return toResult(os);
+        } catch (RuntimeException ex) {
+            metricsPort.registrarFalhaProcessamento("finalizar_servico", ex);
+            throw ex;
+        }
     }
 
     @Override
     public OrdemServicoResult execute(RegistrarPagamentoCommand command) {
-        var os = findById(command.ordemServicoId());
-        if (os.getStatus() != StatusOS.FINALIZADA) {
-            throw new NegocioException("OS precisa estar FINALIZADA para registrar pagamento");
-        }
+        try {
+            var os = findById(command.ordemServicoId());
+            var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
+            if (os.getStatus() != StatusOS.FINALIZADA) {
+                throw new NegocioException("OS precisa estar FINALIZADA para registrar pagamento");
+            }
 
-        var valorTotal = os.calcularValorTotal();
-        var metodo = MetodoPagamento.valueOf(command.metodoPagamento().toUpperCase());
-        var pagamento = Pagamento.builder()
-                .ordemDeServicoId(command.ordemServicoId())
-                .valor(valorTotal)
-                .metodo(metodo)
-                .build();
+            var valorTotal = os.calcularValorTotal();
+            var metodo = MetodoPagamento.valueOf(command.metodoPagamento().toUpperCase());
+            var pagamento = Pagamento.builder()
+                    .ordemDeServicoId(command.ordemServicoId())
+                    .valor(valorTotal)
+                    .metodo(metodo)
+                    .build();
 
-        var gatewayResp = pagamentoGateway.processar(
-                new PagamentoGatewayPort.GatewayRequest(command.ordemServicoId(), valorTotal, metodo));
+            var gatewayResp = pagamentoGateway.processar(
+                    new PagamentoGatewayPort.GatewayRequest(command.ordemServicoId(), valorTotal, metodo));
 
-        if (!gatewayResp.aprovado()) {
-            pagamento.recusar(gatewayResp.transactionId(), gatewayResp.mensagem());
+            if (!gatewayResp.aprovado()) {
+                pagamento.recusar(gatewayResp.transactionId(), gatewayResp.mensagem());
+                pagamentoRepository.salvar(pagamento);
+                metricsPort.registrarFalhaPagamento("recusado_gateway", null);
+                throw new NegocioException("Pagamento recusado pelo gateway: " + gatewayResp.mensagem());
+            }
+
+            pagamento.aprovar(gatewayResp.transactionId(), gatewayResp.mensagem());
             pagamentoRepository.salvar(pagamento);
-            throw new NegocioException("Pagamento recusado pelo gateway: " + gatewayResp.mensagem());
+
+            os.aguardarRetirada();
+            osRepository.salvar(os);
+
+            registrarMudancaStatus("registrar_pagamento", os, statusAnterior, tempoNoStatusAnterior);
+            notificarStatus(os);
+            return toResult(os);
+        } catch (RuntimeException ex) {
+            metricsPort.registrarFalhaProcessamento("registrar_pagamento", ex);
+            metricsPort.registrarFalhaPagamento("erro_processamento", ex);
+            throw ex;
         }
-
-        pagamento.aprovar(gatewayResp.transactionId(), gatewayResp.mensagem());
-        pagamentoRepository.salvar(pagamento);
-
-        os.aguardarRetirada();
-        osRepository.salvar(os);
-
-        notificarStatus(os);
-        return toResult(os);
     }
 
     @Override
     public OrdemServicoResult execute(EntregarVeiculoCommand command) {
-        var os = findById(command.ordemServicoId());
-        if (os.getStatus() != StatusOS.AGUARDANDO_RETIRADA) {
-            throw new IllegalStateException("OS precisa estar AGUARDANDO_RETIRADA para entregar o veiculo");
+        try {
+            var os = findById(command.ordemServicoId());
+            var statusAnterior = os.getStatus();
+            var tempoNoStatusAnterior = tempoNoStatusAtual(os);
+            if (os.getStatus() != StatusOS.AGUARDANDO_RETIRADA) {
+                throw new IllegalStateException("OS precisa estar AGUARDANDO_RETIRADA para entregar o veiculo");
+            }
+
+            var entrega = Entrega.criar(command.ordemServicoId());
+            entrega.liberarVeiculo();
+            entrega.entregarVeiculo();
+            entregaRepository.salvar(entrega);
+
+            os.entregar();
+            osRepository.salvar(os);
+
+            var encerramento = Encerramento.criar(command.ordemServicoId());
+            encerramento.encerrar();
+            encerramentoRepository.salvar(encerramento);
+
+            registrarMudancaStatus("entregar_veiculo", os, statusAnterior, tempoNoStatusAnterior);
+            notificarStatus(os);
+            return toResult(os);
+        } catch (RuntimeException ex) {
+            metricsPort.registrarFalhaProcessamento("entregar_veiculo", ex);
+            throw ex;
         }
-
-        var entrega = Entrega.criar(command.ordemServicoId());
-        entrega.liberarVeiculo();
-        entrega.entregarVeiculo();
-        entregaRepository.salvar(entrega);
-
-        os.entregar();
-        osRepository.salvar(os);
-
-        var encerramento = Encerramento.criar(command.ordemServicoId());
-        encerramento.encerrar();
-        encerramentoRepository.salvar(encerramento);
-
-        notificarStatus(os);
-        return toResult(os);
     }
 
     @Override
     public OrdemServicoResult execute(AdicionarItemOSCommand command) {
-        var os = findById(command.ordemServicoId());
-        var statusPermitidos = Set.of(StatusOS.RECEBIDA, StatusOS.EM_DIAGNOSTICO, StatusOS.EM_EXECUCAO);
-        if (!statusPermitidos.contains(os.getStatus())) {
-            throw new NegocioException(
-                "Nao e possivel adicionar itens no status: " + os.getStatus()
-                + ". Permitido em: RECEBIDA, EM_DIAGNOSTICO ou EM_EXECUCAO");
+        try {
+            var os = findById(command.ordemServicoId());
+            var statusPermitidos = Set.of(StatusOS.RECEBIDA, StatusOS.EM_DIAGNOSTICO, StatusOS.EM_EXECUCAO);
+            if (!statusPermitidos.contains(os.getStatus())) {
+                throw new NegocioException(
+                    "Nao e possivel adicionar itens no status: " + os.getStatus()
+                    + ". Permitido em: RECEBIDA, EM_DIAGNOSTICO ou EM_EXECUCAO");
+            }
+            for (var req : command.itens()) {
+                os.adicionarItem(montarItem(req));
+            }
+            osRepository.salvar(os);
+            return toResult(os);
+        } catch (RuntimeException ex) {
+            metricsPort.registrarFalhaProcessamento("adicionar_item_os", ex);
+            throw ex;
         }
-        for (var req : command.itens()) {
-            os.adicionarItem(montarItem(req));
-        }
-        osRepository.salvar(os);
-        return toResult(os);
     }
 
     @Override
@@ -410,21 +481,51 @@ public class OrdemDeServicoUseCase implements
         try {
             var cliente = clienteRepository.buscarPorId(os.getClienteId()).orElse(os.getCliente());
             if (cliente == null) {
+                metricsPort.registrarFalhaNotificacao("status_os_sem_cliente", os.getStatus(), null);
                 log.warn("NOTIFICACAO_STATUS_OS_SEM_CLIENTE osId={} numero={} status={}",
                         os.getId(), os.getNumero(), os.getStatus());
                 return;
             }
 
-            notificarStatusOrdemServicoInputPort.execute(new NotificarStatusOrdemServicoCommand(
+            var resultado = notificarStatusOrdemServicoInputPort.execute(new NotificarStatusOrdemServicoCommand(
                     os.getId(),
                     os.getNumero(),
                     os.getStatus().name(),
                     cliente.getNome(),
                     cliente.getEmail()));
+            if (!resultado.enviado()) {
+                metricsPort.registrarFalhaNotificacao("status_os", os.getStatus(), null);
+            }
         } catch (Exception ex) {
+            metricsPort.registrarFalhaNotificacao("status_os", os.getStatus(), ex);
             log.warn("NOTIFICACAO_STATUS_OS_FALHOU osId={} numero={} status={} erro={}",
                     os.getId(), os.getNumero(), os.getStatus(), ex.getMessage());
         }
+    }
+
+    private void registrarMudancaStatus(String fluxo, OrdemDeServico os, StatusOS statusAnterior, Duration tempoNoStatusAnterior) {
+        String mecanicoNome = execucaoRepository.buscarPorOrdemDeServico(os.getId())
+                .map(Execucao::getMecanicoNome)
+                .orElse(null);
+        metricsPort.registrarMudancaStatus(
+                fluxo,
+                statusAnterior,
+                os.getStatus(),
+                tempoNoStatusAnterior,
+                mecanicoNome,
+                os.getNumero());
+        var cliente = clienteRepository.buscarPorId(os.getClienteId()).orElse(os.getCliente());
+        var veiculo = veiculoRepository.buscarPorId(os.getVeiculoId()).orElse(os.getVeiculo());
+        var dataEntrega = entregaRepository.buscarPorOrdemDeServico(os.getId())
+                .map(Entrega::getDataEntrega).orElse(null);
+        metricsPort.registrarSnapshotOperacional(os, cliente, veiculo, mecanicoNome, dataEntrega);
+    }
+
+    private Duration tempoNoStatusAtual(OrdemDeServico os) {
+        if (os.getDataEntradaStatus() == null) {
+            return null;
+        }
+        return Duration.between(os.getDataEntradaStatus(), java.time.LocalDateTime.now());
     }
 
     private OrdemServicoResult toResult(OrdemDeServico os) {

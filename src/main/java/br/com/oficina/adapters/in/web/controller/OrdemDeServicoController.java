@@ -39,7 +39,6 @@ import br.com.oficina.domain.valueobject.StatusOS;
 import br.com.oficina.infrastructure.security.ClienteSecurity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.security.Principal;
@@ -240,10 +239,13 @@ public class OrdemDeServicoController {
     }
 
     @GetMapping("/numero/{numero}/status")
+    @PreAuthorize("hasAnyRole('CLIENTE','ATENDENTE','MECANICO','GESTOR')")
     @Operation(summary = "Consultar status da OS pelo numero legivel")
-    @SecurityRequirements
     public ResponseEntity<Map<String, Object>> consultarStatusPorNumero(@PathVariable String numero) {
         var os = buscarOrdemServicoPorNumeroInputPort.execute(numero);
+        if (clienteSecurity.isClienteAutenticado() && !clienteSecurity.isDocumentoDoToken(os.clienteDocumento())) {
+            throw new AccessDeniedException("Cliente nao autorizado para consultar esta OS");
+        }
         var resp = new LinkedHashMap<String, Object>();
         resp.put("numero", os.numero());
         resp.put("status", os.status());

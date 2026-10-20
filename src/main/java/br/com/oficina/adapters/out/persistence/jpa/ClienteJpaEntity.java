@@ -5,6 +5,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -42,4 +44,15 @@ public class ClienteJpaEntity {
 
     @Column(name = "senha_hash")
     private String senhaHash;
+
+    @Column(name = "status_cliente", nullable = false, length = 20)
+    private String statusCliente;
+
+    @PrePersist
+    @PreUpdate
+    void garantirStatusPadrao() {
+        if (statusCliente == null || statusCliente.isBlank()) {
+            statusCliente = "ATIVO";
+        }
+    }
 }

@@ -16,6 +16,7 @@ import br.com.oficina.application.port.out.EmailNotificacaoPort;
 import br.com.oficina.application.port.out.OrcamentoDecisaoClienteRepositoryPort;
 import br.com.oficina.application.port.out.OrcamentoRepositoryPort;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.TokenSeguroPort;
 import br.com.oficina.application.query.DecisaoOrcamentoClienteResult;
 import br.com.oficina.application.query.NotificacaoOrcamentoResult;
@@ -23,7 +24,9 @@ import br.com.oficina.domain.model.OrcamentoDecisaoCliente;
 import br.com.oficina.domain.valueobject.StatusDecisaoCliente;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RequiredArgsConstructor
 public class OrcamentoDecisaoClienteUseCase implements
         EnviarNotificacaoOrcamentoInputPort,
@@ -40,6 +43,7 @@ public class OrcamentoDecisaoClienteUseCase implements
     private final RejeitarOrcamentoInputPort rejeitarOrcamentoInputPort;
     private final String baseUrl;
     private final long expiracaoHoras;
+    private final OrdemServicoMetricsPort metricsPort;
 
     @Override
     public NotificacaoOrcamentoResult execute(EnviarNotificacaoOrcamentoCommand command) {
@@ -48,6 +52,7 @@ public class OrcamentoDecisaoClienteUseCase implements
                         "Ordem de servico nao encontrada: " + command.ordemServicoId()));
         var cliente = clienteRepository.buscarPorId(os.getClienteId()).orElse(os.getCliente());
         if (cliente == null || cliente.getEmail() == null || cliente.getEmail().isBlank()) {
+            metricsPort.registrarFalhaNotificacao("orcamento_decisao_sem_email", os.getStatus(), null);
             throw new NegocioException("Cliente sem email cadastrado para notificacao de orcamento");
         }
 
@@ -73,11 +78,17 @@ public class OrcamentoDecisaoClienteUseCase implements
 
         var linkAprovacao = montarLink(token, "aprovar");
         var linkRecusa = montarLink(token, "recusar");
-        emailNotificacaoPort.enviar(new EmailNotificacaoPort.EmailNotificacao(
-                cliente.getEmail(),
-                "Orcamento da OS " + os.getNumero() + " disponivel para aprovacao",
-                montarCorpoEmail(cliente.getNome(), os.getNumero(), orcamento.getValorTotal().toString(),
-                        dataExpiracao, linkAprovacao, linkRecusa)));
+        try {
+            emailNotificacaoPort.enviar(new EmailNotificacaoPort.EmailNotificacao(
+                    cliente.getEmail(),
+                    "Orcamento da OS " + os.getNumero() + " disponivel para aprovacao",
+                    montarCorpoEmail(cliente.getNome(), os.getNumero(), orcamento.getValorTotal().toString(),
+                            dataExpiracao, linkAprovacao, linkRecusa)));
+        } catch (Exception ex) {
+            metricsPort.registrarFalhaNotificacao("orcamento_decisao", os.getStatus(), ex);
+            log.warn("NOTIFICACAO_ORCAMENTO_FALHOU osId={} numero={} orcamentoId={} email={} erro={}",
+                    os.getId(), os.getNumero(), orcamento.getId(), cliente.getEmail(), ex.getMessage());
+        }
 
         return new NotificacaoOrcamentoResult(
                 orcamento.getId(),

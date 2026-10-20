@@ -13,6 +13,7 @@ import br.com.oficina.application.port.out.EmailNotificacaoPort;
 import br.com.oficina.application.port.out.OrcamentoDecisaoClienteRepositoryPort;
 import br.com.oficina.application.port.out.OrcamentoRepositoryPort;
 import br.com.oficina.application.port.out.OrdemDeServicoRepositoryPort;
+import br.com.oficina.application.port.out.OrdemServicoMetricsPort;
 import br.com.oficina.application.port.out.TokenSeguroPort;
 import br.com.oficina.application.query.OrdemServicoResult;
 import br.com.oficina.domain.model.Cliente;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -69,7 +71,8 @@ class OrcamentoDecisaoClienteUseCaseTest {
                 aprovarOrcamentoInputPort,
                 rejeitarOrcamentoInputPort,
                 "http://localhost:8080",
-                48);
+                48,
+                OrdemServicoMetricsPort.NOOP);
 
         cliente = Cliente.builder()
                 .id(1L)
@@ -118,6 +121,27 @@ class OrcamentoDecisaoClienteUseCaseTest {
                 result.linkAprovacao());
         verify(decisaoRepository).salvar(argThat(decisao -> "hash-token".equals(decisao.getTokenHash())));
         verify(emailNotificacaoPort).enviar(any());
+    }
+
+    @Test
+    void deveRetornarLinksMesmoQuandoEnvioDeEmailFalhar() {
+        when(osRepository.buscarPorId(1L)).thenReturn(Optional.of(os));
+        when(clienteRepository.buscarPorId(1L)).thenReturn(Optional.of(cliente));
+        when(orcamentoRepository.buscarAtivoByOrdemDeServico(1L)).thenReturn(Optional.of(orcamento));
+        when(decisaoRepository.listarPorOrcamentoEStatus(any(), any())).thenReturn(List.of());
+        when(tokenSeguroPort.gerarToken()).thenReturn("token-cliente");
+        when(tokenSeguroPort.gerarHash("token-cliente")).thenReturn("hash-token");
+        when(decisaoRepository.salvar(any())).thenAnswer(inv -> inv.getArgument(0));
+        doThrow(new RuntimeException("smtp indisponivel")).when(emailNotificacaoPort).enviar(any());
+
+        var result = useCase.execute(new EnviarNotificacaoOrcamentoCommand(1L));
+
+        assertEquals("maria@email.com", result.emailDestino());
+        assertEquals("http://localhost:8080/api/orcamentos/decisoes-cliente/token-cliente/aprovar",
+                result.linkAprovacao());
+        assertEquals("http://localhost:8080/api/orcamentos/decisoes-cliente/token-cliente/recusar",
+                result.linkRecusa());
+        verify(decisaoRepository).salvar(argThat(decisao -> "hash-token".equals(decisao.getTokenHash())));
     }
 
     @Test

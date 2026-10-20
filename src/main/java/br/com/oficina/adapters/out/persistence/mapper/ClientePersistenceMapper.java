@@ -21,7 +21,8 @@ public class ClientePersistenceMapper {
             cliente.getBairro(),
             cliente.getCidade(),
             cliente.getUf(),
-            cliente.getSenhaHash()
+            cliente.getSenhaHash(),
+            cliente.getStatusCliente()
         );
     }
 
@@ -38,6 +39,7 @@ public class ClientePersistenceMapper {
             .cidade(entity.getCidade())
             .uf(entity.getUf())
             .senhaHash(entity.getSenhaHash())
+            .statusCliente(entity.getStatusCliente())
             .build();
     }
 }

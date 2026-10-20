@@ -4,9 +4,10 @@ import br.com.oficina.application.port.out.TokenProviderPort;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -21,8 +22,9 @@ import io.qameta.allure.Story;
 @WebMvcTest(
     controllers = TestExceptionController.class,
     excludeAutoConfiguration = {
-        SecurityAutoConfiguration.class,
-        SecurityFilterAutoConfiguration.class
+        UserDetailsServiceAutoConfiguration.class,
+        SecurityFilterAutoConfiguration.class,
+        ServletWebSecurityAutoConfiguration.class
     }
 )
 @Import(GlobalExceptionHandler.class)
