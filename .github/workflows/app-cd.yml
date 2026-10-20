@@ -1,6 +1,6 @@
 name: App CI/CD - Build, Test and Deploy
 
-run-name: "${{ github.workflow }} | ${{ inputs.parent_run_id || github.run_id }} | ${{ inputs.source_sha || github.sha }}"
+run-name: "${{ github.workflow }} | ${{ inputs.parent_run_id || github.run_id }} | ${{ inputs.orchestrated && inputs.source_sha || github.sha }}"
 
 on:
   pull_request:
@@ -48,7 +48,27 @@ env:
   K8S_CONTAINER: oficina-api
 
 jobs:
+  authorize:
+    name: Authorize deployment source
+    if: github.event_name == 'workflow_dispatch' && inputs.orchestrated && (github.ref_name == 'homolog' || github.ref_name == 'main')
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Authorize protected source before checkout and tests
+        env:
+          GH_TOKEN: ${{ secrets.GH_AUTOMATION_TOKEN }}
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PARENT_RUN_ID: ${{ inputs.parent_run_id }}
+          DEPLOY_ACTION: "deploy"
+        run: python3 scripts/ci/deployment.py worker
+
   build-test:
+    needs: authorize
+    if: ${{ !cancelled() && ((inputs.orchestrated && needs.authorize.result == 'success') || (!inputs.orchestrated && needs.authorize.result == 'skipped')) }}
     name: Build and test application
     runs-on: ubuntu-latest
 
@@ -56,7 +76,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.orchestrated && inputs.source_sha || github.sha }}
 
       - name: Validate deployment safeguards
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
@@ -91,10 +111,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.orchestrated && inputs.source_sha || github.sha }}
 
       - name: Build Docker image
-        run: docker build -t oficina-dgcar-api:${{ inputs.source_sha || github.sha }} .
+        run: docker build -t oficina-dgcar-api:${{ inputs.orchestrated && inputs.source_sha || github.sha }} .
 
   deploy:
     name: Build image, push to ECR and deploy on EKS
@@ -107,7 +127,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.orchestrated && inputs.source_sha || github.sha }}
 
       - name: Authorize environment coordinator
         env:
@@ -157,7 +177,7 @@ jobs:
             ECR_REPOSITORY_URL="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY"
           fi
 
-          IMAGE_URI="$ECR_REPOSITORY_URL:${{ inputs.source_sha || github.sha }}"
+          IMAGE_URI="$ECR_REPOSITORY_URL:${{ inputs.orchestrated && inputs.source_sha || github.sha }}"
 
           echo "aws_region=$AWS_REGION" >> "$GITHUB_OUTPUT"
           echo "eks_cluster_name=$EKS_CLUSTER_NAME" >> "$GITHUB_OUTPUT"
@@ -504,7 +524,7 @@ jobs:
   request-deployment:
     name: Queue environment update
     needs: build-test
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.orchestrated && true)
+    if: (github.ref_name == 'homolog' || github.ref_name == 'main') && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.orchestrated && true))
     runs-on: ubuntu-latest
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'prod' || 'homolog') }}
     steps:
