@@ -210,13 +210,12 @@ O workflow [app-cd.yml](.github/workflows/app-cd.yml) tem estes gatilhos:
 | Evento | Execução |
 |---|---|
 | PR para `homolog` ou `main` | `mvn clean test` e build da imagem, sem deploy |
-| Push em `homolog` | Testes e deploy, somente nos caminhos de código configurados |
-| Push em `main` | Testes e build; produção é publicada por dispatch da orquestração ou execução manual |
-| `workflow_dispatch` | Testes e deploy no environment escolhido: `homolog` ou `prod` |
+| Merge em `homolog` ou `main` | Testes e solicitação automática de deploy à fila central; filtro em código, build, workflow e `scripts/ci/**` |
+| `workflow_dispatch` | Reexecução manual encaminhada à mesma fila; `homolog` usa a branch `homolog` e `prod` usa `main` |
 
-O deploy automático por push atende homolog. O deploy de prod é acionado explicitamente por `workflow_dispatch` na referência main. Alterações apenas em README ou Postman não atendem ao filtro de push desse workflow. O workflow [ci.yml](.github/workflows/ci.yml) separado verifica a estrutura do repositório em PRs e pushes dessas branches.
+Push em `homolog` seleciona homolog; push em `main` seleciona prod. Alterações apenas em README ou Postman não atendem ao filtro de push desse workflow. O workflow [ci.yml](.github/workflows/ci.yml) separado verifica a estrutura do repositório em PRs e pushes dessas branches.
 
-Para reexecutar o deploy: **Actions → App CI/CD - Build, Test and Deploy → Run workflow**, selecione a referência de código e `environment`. A orquestração de infra-k8s também aciona esse dispatch. O ambiente deve possuir EKS, ECR e banco acessíveis.
+Para reexecutar o deploy: **Actions → App CI/CD - Build, Test and Deploy → Run workflow**, selecione a referência de código e `environment`. O pedido entra no coordenador de infra-k8s, que despacha o worker com o SHA de origem e o identificador da execução pai. Esses campos são reservados à automação. O ambiente deve possuir EKS, ECR e banco acessíveis.
 
 O deploy publica a imagem no ECR, conecta ao EKS, aplica namespace, ConfigMap, Secret, Deployment, Service e HPA, reinicia o Deployment e aguarda o rollout. Ao final, publica `API_BACKEND_URL` no environment correspondente de infra-k8s.
 
@@ -231,3 +230,5 @@ O Java Agent fornece APM e os eventos customizados de OS. Os logs JSON saem no s
 Os roteiros completos estão na [documentação central](https://github.com/techdgconsulting/oficina-dgcar-docs), em `docs/observabilidade/`, e na infraestrutura em [DASHBOARD-OPERACIONAL.md](https://github.com/techdgconsulting/oficina-dgcar-infra-k8s/blob/homolog/README.md#atualização-de-dashboards-e-observabilidade). Consulte a revisão correspondente à implantação; as alterações documentais locais seguem o estado do checkout até serem publicadas.
 
 A origem da extração permanece em [ORIGEM_HISTORICA.md](ORIGEM_HISTORICA.md).
+
+A fila por ambiente serializa API, Lambda, banco e plataforma com provisionamento e remoção. O deploy verifica o coordenador antes de acessar a AWS e usa o mesmo SHA nos testes e na imagem. PRs para `main` precisam conter o histórico de `homolog`. A decisão está na [ADR-020](https://github.com/techdgconsulting/oficina-dgcar-docs/blob/homolog/docs/adr/ADR-020-promocao-e-deploy-automatico.md).

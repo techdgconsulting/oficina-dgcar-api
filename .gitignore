@@ -20,3 +20,8 @@ postman/.postman/
 postman/postman/
 postman/Oficina DGCar - Gateway JWT Cliente/
 postman/OficinaMecanica — Suite Completa/
+
+# Local CI validation and Terraform saved plans
+__pycache__/
+*.tfplan
+*-plan.json
