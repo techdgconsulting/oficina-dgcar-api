@@ -78,7 +78,15 @@ oficina:
       # Latência simulada em ms
       latency-ms: ${PAGAMENTO_GATEWAY_LATENCY_MS:100}
 
+info:
+  app:
+    name: ${spring.application.name}
+    release: deploy-apresentacao
+
 management:
+  info:
+    env:
+      enabled: true
   endpoints:
     web:
       exposure:
